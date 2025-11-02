@@ -22,8 +22,8 @@ jobs:
       - name: Set token
         id: token
         run: |
-          if [ -n "${{ secrets.REPO_SCOPED_TOKEN }}" ]; then
-            echo "token=${{ secrets.REPO_SCOPED_TOKEN }}" >> "$GITHUB_OUTPUT"
+          if [ -n "${{ secrets.SLASH_COMMAND_PAT }}" ]; then
+            echo "token=${{ secrets.SLASH_COMMAND_PAT }}" >> "$GITHUB_OUTPUT"
           else
             echo "token=${{ secrets.GITHUB_TOKEN }}" >> "$GITHUB_OUTPUT"
           fi
