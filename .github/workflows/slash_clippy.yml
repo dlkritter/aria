@@ -28,6 +28,6 @@ jobs:
           commands: clippy
           dispatch-type: repository
           issue-type: pull-request
-          repository: ${{ github.event.issue.pull_request.base.repo.full_name }}
+          repository: ${{ github.repository }}
           # Conditionally enable reactions only if the PR is not from a fork to avoid run failures 
           reactions: ${{ github.event.issue.pull_request.head.repo.full_name == github.repository && 'eyes' || '' }}
