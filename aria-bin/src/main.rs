@@ -48,9 +48,7 @@ impl From<&Args> for VmOptions {
                 options.dump_stack = true;
             }
         }
-
         options.vm_args = value.extra_args.clone();
-
         options
     }
 }
