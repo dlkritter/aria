@@ -32,7 +32,7 @@ struct Args {
     #[arg(trailing_var_arg = true)]
     extra_args: Vec<String>,
     #[arg(long("print-lib-path"))]
-print_lib_path: bool,
+    print_lib_path: bool,
     /// Turn off REPL preamble
     #[arg(long("no-repl-preamble"))]
     no_repl_preamble: bool,
@@ -47,7 +47,8 @@ impl From<&Args> for VmOptions {
             if value.trace_stack {
                 options.dump_stack = true;
             }
-        } options.vm_args = value.extra_args.clone();
+        }
+        options.vm_args = value.extra_args.clone();
 
         options
     }
