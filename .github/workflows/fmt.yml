@@ -65,6 +65,7 @@ jobs:
             fi
           else
             echo "pushed=false" >> "$GITHUB_OUTPUT"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
             echo "No formatting changes."
           fi
 
