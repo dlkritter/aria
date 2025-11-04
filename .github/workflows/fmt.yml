@@ -75,6 +75,7 @@ jobs:
           issue-number: ${{ steps.pr.outputs.number }}
           body: |
             ✅ `cargo fmt` completed on `${{ steps.pr.outputs.ref }}`.
-            ${{ steps.commit.outputs.changed == 'false' && '🎉 Code was already properly formatted.' }}
-            ${{ steps.commit.outputs.changed == 'true' && steps.commit.outputs.fork == 'false' && '✅ Formatting fixes were pushed; CI will re-run automatically.' }}
-            ${{ steps.commit.outputs.changed == 'true' && steps.commit.outputs.fork == 'true' && '❌ This PR is from a fork, please run `cargo fmt --all` locally and push again.' }}
+            
+            ${{ steps.commit.outputs.changed == 'false' && '🎉 Code was already properly formatted.' || 
+            (steps.commit.outputs.pushed == 'true' && '✅ Formatting fixes were pushed; CI will re-run automatically.' || 
+            '❌ This PR is from a fork, so fixes couldn’t be pushed. Please run `cargo fmt --all` locally and push again.') }}
