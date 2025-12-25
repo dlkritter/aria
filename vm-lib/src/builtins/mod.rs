@@ -123,28 +123,28 @@ impl VmBuiltins {
         self.values.write(name, val);
     }
 
-    pub fn get_builtin_type_by_name(&self, name: &str) -> RuntimeValueType {
-        self.load_named_value(name)
-            .unwrap_or_else(|| panic!("missing builtin value {name}"))
-            .as_type()
-            .unwrap_or_else(|| panic!("{name} is not a type"))
-            .clone()
+    pub fn get_builtin_type_by_name(&self, name: &str) -> Option<RuntimeValueType> {
+        if let Some(bv) = self.load_named_value(name) {
+            bv.as_type().cloned()
+        } else {
+            None
+        }
     }
 
     pub fn get_builtin_type_by_id(&self, n: u8) -> Option<RuntimeValueType> {
         match n {
-            BUILTIN_TYPE_ANY => Some(self.get_builtin_type_by_name("Any")),
-            BUILTIN_TYPE_INT => Some(self.get_builtin_type_by_name("Int")),
-            BUILTIN_TYPE_FLOAT => Some(self.get_builtin_type_by_name("Float")),
-            BUILTIN_TYPE_LIST => Some(self.get_builtin_type_by_name("List")),
-            BUILTIN_TYPE_STRING => Some(self.get_builtin_type_by_name("String")),
-            BUILTIN_TYPE_BOOL => Some(self.get_builtin_type_by_name("Bool")),
-            BUILTIN_TYPE_MAYBE => Some(self.get_builtin_type_by_name("Maybe")),
-            BUILTIN_TYPE_RESULT => Some(self.get_builtin_type_by_name("Result")),
-            BUILTIN_TYPE_UNIMPLEMENTED => Some(self.get_builtin_type_by_name("Unimplemented")),
-            BUILTIN_TYPE_RUNTIME_ERROR => Some(self.get_builtin_type_by_name("RuntimeError")),
-            BUILTIN_TYPE_UNIT => Some(self.get_builtin_type_by_name("Unit")),
-            BUILTIN_TYPE_TYPE => Some(self.get_builtin_type_by_name("Type")),
+            BUILTIN_TYPE_ANY => self.get_builtin_type_by_name("Any"),
+            BUILTIN_TYPE_INT => self.get_builtin_type_by_name("Int"),
+            BUILTIN_TYPE_FLOAT => self.get_builtin_type_by_name("Float"),
+            BUILTIN_TYPE_LIST => self.get_builtin_type_by_name("List"),
+            BUILTIN_TYPE_STRING => self.get_builtin_type_by_name("String"),
+            BUILTIN_TYPE_BOOL => self.get_builtin_type_by_name("Bool"),
+            BUILTIN_TYPE_MAYBE => self.get_builtin_type_by_name("Maybe"),
+            BUILTIN_TYPE_RESULT => self.get_builtin_type_by_name("Result"),
+            BUILTIN_TYPE_UNIMPLEMENTED => self.get_builtin_type_by_name("Unimplemented"),
+            BUILTIN_TYPE_RUNTIME_ERROR => self.get_builtin_type_by_name("RuntimeError"),
+            BUILTIN_TYPE_UNIT => self.get_builtin_type_by_name("Unit"),
+            BUILTIN_TYPE_TYPE => self.get_builtin_type_by_name("Type"),
             _ => None,
         }
     }
