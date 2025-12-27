@@ -1274,7 +1274,7 @@ impl StructEntry {
 pub struct StructDecl {
     pub loc: SourcePointer,
     pub name: Identifier,
-    pub inherits: Option<Identifier>,
+    pub inherits: Vec<Expression>,
     pub body: Vec<StructEntry>,
 }
 
@@ -1319,7 +1319,7 @@ pub struct EnumDecl {
 pub struct ExtensionDecl {
     pub loc: SourcePointer,
     pub target: Expression,
-    pub inherits: Option<Identifier>,
+    pub inherits: Vec<Expression>,
     pub body: Vec<StructEntry>,
 }
 
