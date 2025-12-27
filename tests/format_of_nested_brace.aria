@@ -1,0 +1,3 @@
+# SPDX-License-Identifier: Apache-2.0
+
+assert "{{{0}}}".format("hello world") == "{hello world}";

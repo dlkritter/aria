@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 For information on Aria's versioning scheme and release policy refer to [our Release Policy](https://arialang.github.io/release_policy.html).
 
+## [0.9.20251222]
+
+### Added
+
+- Values of builtin types can now be checked for `mixin`
+- Lists and strings allow wraparound indexing (e.g. `foo[-1]`)
+- shift-equal operators (`<<=` and `=>>`)
+- `\r` is now recognized as a valid escape sequence
+- `JSONValue` prettyprints
+
+### Fixed
+
+- Multiplying a list or string by a negative integer returns an empty value
+- `File.writeln` now actually writes a newline
+- REPL input can now contain comments
+- `MixinRng.one_of` will fail if passed an empty list as input
+- String classes API now supports Unicode
+- Negative timestamps are now resolved correctly by `Instant`
+
+### Changed
+
+- in `match` statements, `case Foo(blah)` will fail if `Foo` does not have a payload instead of throwing a VM error
+- `String.hash` will return different values for anagrams
+
+### Deprecated
+
+None
+
+### Removed
+
+None
+
 ## [0.9.20251118]
 
 ### Added

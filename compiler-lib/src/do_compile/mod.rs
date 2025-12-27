@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-use std::{collections::HashSet, fmt::Display, path::PathBuf, rc::Rc};
+use std::{collections::HashSet, fmt::Display, path::PathBuf};
 
 use aria_parser::ast::{
     ArgumentDecl, ArgumentList, AssertStatement, CodeBlock, DeclarationId, ElsePiece, EnumCaseDecl,
@@ -14,9 +14,8 @@ use thiserror::Error;
 
 use crate::{
     CompilationOptions,
-    builder::compiler_opcodes::CompilerOpcode,
+    builder::{block::BasicBlock, compiler_opcodes::CompilerOpcode, func::FunctionBuilder},
     constant_value::{ConstantValue, ConstantValuesError},
-    func_builder::{BasicBlock, FunctionBuilder},
     module::CompiledModule,
     scope::{CompilationScope, ScopeError, ScopeErrorReason},
 };
@@ -113,8 +112,8 @@ pub type CompilationResult<T = (), E = CompilationError> = Result<T, E>;
 
 #[derive(Default)]
 struct ControlFlowTargets {
-    break_dest: Option<Rc<BasicBlock>>,
-    continue_dest: Option<Rc<BasicBlock>>,
+    break_dest: Option<BasicBlock>,
+    continue_dest: Option<BasicBlock>,
 }
 
 struct CompileParams<'a> {
@@ -130,7 +129,7 @@ trait CompileNode<'a, T = (), E = CompilationError> {
 
     fn insert_const_or_fail(
         &self,
-        params: &'a mut CompileParams,
+        params: &mut CompileParams,
         ct: ConstantValue,
         loc: &SourcePointer,
     ) -> CompilationResult<u16> {
@@ -141,6 +140,30 @@ trait CompileNode<'a, T = (), E = CompilationError> {
                 reason: CompilationErrorReason::TooManyConstants,
             }),
         }
+    }
+
+    fn return_unit_value(
+        &self,
+        params: &mut CompileParams,
+        loc: &SourcePointer,
+    ) -> CompilationResult {
+        let unit_const_idx =
+            self.insert_const_or_fail(params, ConstantValue::String("unit".to_owned()), loc)?;
+
+        params
+            .writer
+            .get_current_block()
+            .write_opcode_and_source_info(
+                CompilerOpcode::PushBuiltinTy(haxby_opcodes::builtin_type_ids::BUILTIN_TYPE_UNIT),
+                loc.clone(),
+            )
+            .write_opcode_and_source_info(
+                CompilerOpcode::NewEnumVal(false, unit_const_idx),
+                loc.clone(),
+            )
+            .write_opcode_and_source_info(CompilerOpcode::Return, loc.clone());
+
+        Ok(())
     }
 }
 

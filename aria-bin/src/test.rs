@@ -279,3 +279,60 @@ fn repl_test_invalid_literal() {
         &[],
     );
 }
+
+#[test]
+fn repl_allows_comments() {
+    let cmdline_options = Args::default();
+    let mut repl = build_test_repl(&cmdline_options);
+
+    run_passing_repl_line(
+        &mut repl,
+        r#"
+func foo() {
+# this is a comment
+return # this is another comment
+ (
+    12345 # comment after expression
+ );
+}
+"#,
+        &[],
+    );
+    run_passing_repl_line(&mut repl, "foo();", &["12345"]);
+}
+
+#[test]
+fn repl_handles_hashtag_in_string() {
+    let cmdline_options = Args::default();
+    let mut repl = build_test_repl(&cmdline_options);
+
+    run_passing_repl_line(
+        &mut repl,
+        r#"
+func foo() {
+# this is a comment
+return '#arialang';
+}
+"#,
+        &[],
+    );
+    run_passing_repl_line(&mut repl, "foo();", &["#arialang"]);
+}
+
+#[test]
+fn repl_test_oneof_from_empty_list() {
+    let cmdline_options = Args::default();
+    let mut repl = build_test_repl(&cmdline_options);
+
+    run_check_repl_line(
+        &mut repl,
+        r#"
+import XorshiftRng from aria.rng.xorshift;
+val x = XorshiftRng.new();
+x.one_of([])
+        "#,
+        false,
+        &["operation failed: cannot choose from empty list"],
+        &[],
+    );
+}
