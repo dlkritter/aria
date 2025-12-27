@@ -2,7 +2,8 @@
 use crate::lexer::{self, SyntaxKind};
 use SyntaxKind::*;
 use core::ops::Range;
-use rowan::{GreenNode, GreenNodeBuilder};
+use line_index::LineIndex;
+use rowan::{GreenNode, GreenNodeBuilder, TextSize};
 use std::cell::Cell;
 
 impl From<SyntaxKind> for rowan::SyntaxKind {
@@ -76,6 +77,7 @@ pub fn parse(text: &str) -> Parse {
         fuel: Cell<u32>,
         events: Vec<Event>,
         errors: Vec<ParseError>,
+        line_index: LineIndex,
     }
 
     fn is_trivia(kind: SyntaxKind) -> bool {
@@ -102,9 +104,8 @@ pub fn parse(text: &str) -> Parse {
         use SyntaxKind::*;
         match op {
             // Assignment operators (right-associative, lowest precedence)
-            Assign | PlusAssign | MinusAssign | StarAssign | SlashAssign | PercentAssign => {
-                Some((2, 1))
-            }
+            Assign | PlusAssign | MinusAssign | StarAssign | SlashAssign | PercentAssign
+            | LeftShiftAssign | RightShiftAssign => Some((2, 1)),
 
             LogicalOr => Some((3, 4)),
             LogicalAnd => Some((5, 6)),
@@ -410,6 +411,9 @@ pub fn parse(text: &str) -> Parse {
                 if self.at(Pipe) {
                     self.expect(Pipe);
                 }
+                if self.at(BitwiseAnd) {
+                    self.expect(BitwiseAnd);
+                }
             }
             self.close(m, ExprType);
         }
@@ -440,26 +444,12 @@ pub fn parse(text: &str) -> Parse {
                 ThrowKwd => self.stmt_kwd_with_expr(ThrowKwd),
                 ReturnKwd => self.stmt_return(),
                 LeftBrace => self.block(),
-                GuardKwd => self.guard(),
                 TryKwd => self.try_catch(),
                 StructKwd => self.decl_struct_or_ext(Struct, StructKwd),
                 EnumKwd => self.decl_enum(),
                 FuncKwd => self.decl_func(),
                 _ => self.stmt_expr(),
             }
-        }
-
-        fn guard(&mut self) {
-            assert!(self.at(GuardKwd));
-            let m = self.open();
-
-            self.expect(GuardKwd);
-            self.expect(Identifier);
-            self.expect(Assign);
-            let _ = self.expr();
-            self.block();
-
-            self.close(m, Guard);
         }
 
         fn stmt_if(&mut self) {
@@ -663,14 +653,23 @@ pub fn parse(text: &str) -> Parse {
             self.parse_access_modifier();
 
             self.expect(ValKwd);
-            self.expect(Identifier);
 
-            if self.at(Colon) {
-                self.type_annotation();
+            loop {
+                self.expect(Identifier);
+
+                if self.at(Colon) {
+                    self.type_annotation();
+                }
+
+                self.expect(Assign);
+                let _ = self.expr();
+
+                if self.at(Comma) {
+                    self.expect(Comma);
+                } else {
+                    break;
+                }
             }
-
-            self.expect(Assign);
-            let _ = self.expr();
 
             self.expect(Semicolon);
 
@@ -794,6 +793,20 @@ pub fn parse(text: &str) -> Parse {
 
             if !self.at(Semicolon) {
                 let _ = self.expr();
+
+                // Allow multiple comma-separated expressions in a single
+                // expression statement (e.g. multi-write patterns).
+                while self.at(Comma) {
+                    self.expect(Comma);
+
+                    // Allow a trailing comma before semicolon, but don't
+                    // try to parse another expression in that case.
+                    if self.at(Semicolon) {
+                        break;
+                    }
+
+                    let _ = self.expr();
+                }
             }
 
             self.expect(Semicolon);
@@ -937,7 +950,7 @@ pub fn parse(text: &str) -> Parse {
                     // Use ExprAssign for assignment operators, ExprBinary for others
                     let node_kind = match op {
                         Assign | PlusAssign | MinusAssign | StarAssign | SlashAssign
-                        | PercentAssign => ExprAssign,
+                        | PercentAssign | LeftShiftAssign | RightShiftAssign => ExprAssign,
                         _ => ExprBinary,
                     };
 
@@ -1127,7 +1140,6 @@ pub fn parse(text: &str) -> Parse {
                     | ForKwd
                     | FromKwd
                     | FuncKwd
-                    | GuardKwd
                     | IfKwd
                     | ImportKwd
                     | InKwd
@@ -1183,11 +1195,16 @@ pub fn parse(text: &str) -> Parse {
         }
 
         fn assert_tok(&mut self, kind: SyntaxKind) {
-            assert!(self.at(kind));
+            assert!(
+                self.at(kind),
+                "expected {:?} but found {:?} at {:?}",
+                kind,
+                self.nth(0),
+                self.line_index.line_col(TextSize::from(self.pos as u32))
+            );
         }
 
         fn build_tree(self) -> Parse {
-            // Preflight validation
             {
                 let mut opens = 0usize;
                 let mut closes = 0usize;
@@ -1271,6 +1288,7 @@ pub fn parse(text: &str) -> Parse {
         fuel: Cell::new(256),
         events: Vec::new(),
         errors: Vec::new(),
+        line_index: LineIndex::new(text),
     };
     parser.file();
     parser.build_tree()

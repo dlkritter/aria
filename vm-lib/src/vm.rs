@@ -757,12 +757,24 @@ impl VirtualMachine {
                 let x = pop_or_err!(next, frame, op_idx);
                 let y = pop_or_err!(next, frame, op_idx);
                 if let (RuntimeValue::Integer(a), RuntimeValue::Integer(b)) = (&x, &y) {
+                    if a.raw_value() == 0 {
+                        return build_vm_error!(VmErrorReason::DivisionByZero, next, frame, op_idx);
+                    }
                     frame.stack.push(RuntimeValue::Integer(b % a));
                 } else if let (RuntimeValue::Float(a), RuntimeValue::Float(b)) = (&x, &y) {
+                    if a.raw_value() == 0.0 {
+                        return build_vm_error!(VmErrorReason::DivisionByZero, next, frame, op_idx);
+                    }
                     frame.stack.push(RuntimeValue::Float(b % a))
                 } else if let (RuntimeValue::Integer(a), RuntimeValue::Float(b)) = (&x, &y) {
+                    if a.raw_value() == 0 {
+                        return build_vm_error!(VmErrorReason::DivisionByZero, next, frame, op_idx);
+                    }
                     frame.stack.push(RuntimeValue::Float(b % &a.to_fp()))
                 } else if let (RuntimeValue::Float(a), RuntimeValue::Integer(b)) = (&x, &y) {
+                    if a.raw_value() == 0.0 {
+                        return build_vm_error!(VmErrorReason::DivisionByZero, next, frame, op_idx);
+                    }
                     frame.stack.push(RuntimeValue::Float(&b.to_fp() % a))
                 } else {
                     binop_eval!(
@@ -1415,7 +1427,8 @@ impl VirtualMachine {
                     }
                 }
             }
-            Opcode::NewEnumVal(n) => {
+            Opcode::NewEnumVal(a, n) => {
+                let has_payload = (a & CASE_HAS_PAYLOAD) == CASE_HAS_PAYLOAD;
                 let case_name = if let Some(ct) = this_module.load_indexed_const(n) {
                     if let Some(sv) = ct.as_string() {
                         sv.clone()
@@ -1440,6 +1453,14 @@ impl VirtualMachine {
                                 op_idx
                             );
                         };
+                        if case.payload_type.is_some() != has_payload {
+                            return build_vm_error!(
+                                VmErrorReason::UnexpectedType,
+                                next,
+                                frame,
+                                op_idx
+                            );
+                        }
                         let payload = match &case.payload_type {
                             Some(pt) => {
                                 let pv = pop_or_err!(next, frame, op_idx);
@@ -1488,25 +1509,21 @@ impl VirtualMachine {
                     return build_vm_error!(VmErrorReason::UnexpectedType, next, frame, op_idx);
                 }
             }
-            Opcode::EnumExtractPayload => {
+            Opcode::EnumTryExtractPayload => {
                 let ev = pop_or_err!(next, frame, op_idx);
                 if let Some(ev) = ev.as_enum_value() {
                     let p = ev.get_payload();
                     match p {
                         None => {
-                            return build_vm_error!(
-                                VmErrorReason::EnumWithoutPayload,
-                                next,
-                                frame,
-                                op_idx
-                            );
+                            frame.stack.push(RuntimeValue::Boolean(false.into()));
                         }
                         Some(p) => {
                             frame.stack.push(p.clone());
+                            frame.stack.push(RuntimeValue::Boolean(true.into()));
                         }
                     }
                 } else {
-                    return build_vm_error!(VmErrorReason::UnexpectedType, next, frame, op_idx);
+                    frame.stack.push(RuntimeValue::Boolean(false.into()));
                 }
             }
             Opcode::TryUnwrapProtocol(mode) => {
@@ -1670,7 +1687,10 @@ impl VirtualMachine {
                             }
                         };
                         let symbol: libloading::Symbol<
-                            unsafe extern "C" fn(*const RuntimeModule) -> LoadResult,
+                            unsafe extern "C" fn(
+                                *const VirtualMachine,
+                                *const RuntimeModule,
+                            ) -> LoadResult,
                         > = match dylib.get(b"dylib_haxby_inject") {
                             Ok(f) => f,
                             Err(e) => {
@@ -1686,7 +1706,10 @@ impl VirtualMachine {
                             }
                         };
 
-                        let load_result = symbol(module as *const RuntimeModule);
+                        let load_result = symbol(
+                            self as *const VirtualMachine,
+                            module as *const RuntimeModule,
+                        );
                         if load_result.status == LoadStatus::Success {
                             self.loaded_dylibs.insert(lib_name, dylib);
                         } else {

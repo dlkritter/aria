@@ -1,6 +1,6 @@
 [package]
 name = "test-bin"
-version = "0.9.20251118"
+version = "0.9.20251222"
 edition = "2024"
 
 [dependencies]
@@ -13,6 +13,7 @@ compiler-lib = { path = "../compiler-lib" }
 vm-lib = { path = "../vm-lib" }
 regex = "1.12.2"
 once_cell = "1.21.3"
+enum-as-inner = "0.6.1"
 
 [[bin]]
 name = "test"

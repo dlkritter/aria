@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use aria_parser::ast::{DeclarationId, Identifier};
-use haxby_opcodes::builtin_type_ids::BUILTIN_TYPE_UNIT;
 
 use crate::{
-    builder::compiler_opcodes::CompilerOpcode,
+    builder::{compiler_opcodes::CompilerOpcode, func::FunctionBuilder},
     constant_value::{CompiledCodeObject, ConstantValue},
     do_compile::{
         CompilationError, CompilationResult, CompileNode, CompileParams, ControlFlowTargets,
         emit_args_at_target,
     },
-    func_builder::FunctionBuilder,
     scope::CompilationScope,
 };
 
@@ -41,22 +39,8 @@ impl<'a> CompileNode<'a> for aria_parser::ast::MethodDecl {
         });
         let argc = emit_args_at_target(&[this_arg], &self.args, &[], &mut c_params)?;
 
-        let unit = self.insert_const_or_fail(
-            &mut c_params,
-            ConstantValue::String("unit".to_owned()),
-            &self.loc,
-        )?;
-
         self.body.do_compile(&mut c_params)?;
-        c_params
-            .writer
-            .get_current_block()
-            .write_opcode_and_source_info(
-                CompilerOpcode::PushBuiltinTy(BUILTIN_TYPE_UNIT),
-                self.loc.clone(),
-            )
-            .write_opcode_and_source_info(CompilerOpcode::NewEnumVal(unit), self.loc.clone())
-            .write_opcode_and_source_info(CompilerOpcode::Return, self.loc.clone());
+        self.return_unit_value(&mut c_params, &self.loc)?;
 
         let frame_size = c_params.scope.as_function_root().unwrap().num_locals();
 

@@ -94,8 +94,15 @@ pub fn opcode_prettyprint(
                 << const_best_repr(module, *idx)
                 << "]"
         }
-        Opcode::NewEnumVal(idx) => {
-            buffer << "NEW_ENUM_VAL(@" << *idx << ") [" << const_best_repr(module, *idx) << "]"
+        Opcode::NewEnumVal(flag, idx) => {
+            buffer
+                << "NEW_ENUM_VAL("
+                << *flag
+                << ",@"
+                << *idx
+                << ") ["
+                << const_best_repr(module, *idx)
+                << "]"
         }
         Opcode::EnumCheckIsCase(idx) => {
             buffer
@@ -167,7 +174,7 @@ pub fn opcode_prettyprint(
         | Opcode::BuildEnum
         | Opcode::BuildMixin
         | Opcode::IncludeMixin
-        | Opcode::EnumExtractPayload
+        | Opcode::EnumTryExtractPayload
         | Opcode::Isa
         | Opcode::LiftModule
         | Opcode::Halt => buffer << opcode.to_string(),

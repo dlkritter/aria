@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
-use haxby_opcodes::{builtin_type_ids::BUILTIN_TYPE_UNIT, function_attribs::FUNC_ACCEPTS_VARARG};
+use haxby_opcodes::function_attribs::FUNC_ACCEPTS_VARARG;
 
 use crate::{
-    builder::compiler_opcodes::CompilerOpcode,
+    builder::{compiler_opcodes::CompilerOpcode, func::FunctionBuilder},
     constant_value::{CompiledCodeObject, ConstantValue},
     do_compile::{
         CompilationError, CompilationResult, CompileNode, CompileParams, ControlFlowTargets,
         emit_args_at_target,
     },
-    func_builder::FunctionBuilder,
 };
 
 impl<'a> CompileNode<'a> for aria_parser::ast::FunctionDecl {
@@ -25,22 +24,8 @@ impl<'a> CompileNode<'a> for aria_parser::ast::FunctionDecl {
 
         let argc = emit_args_at_target(&[], &self.args, &[], &mut c_params)?;
 
-        let unit = self.insert_const_or_fail(
-            &mut c_params,
-            ConstantValue::String("unit".to_owned()),
-            &self.loc,
-        )?;
-
         self.body.do_compile(&mut c_params)?;
-        c_params
-            .writer
-            .get_current_block()
-            .write_opcode_and_source_info(
-                CompilerOpcode::PushBuiltinTy(BUILTIN_TYPE_UNIT),
-                self.loc.clone(),
-            )
-            .write_opcode_and_source_info(CompilerOpcode::NewEnumVal(unit), self.loc.clone())
-            .write_opcode_and_source_info(CompilerOpcode::Return, self.loc.clone());
+        self.return_unit_value(&mut c_params, &self.loc)?;
 
         let co = match writer.write(&params.module.constants, params.options) {
             Ok(c) => c,
