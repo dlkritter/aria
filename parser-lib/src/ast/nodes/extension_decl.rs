@@ -15,9 +15,9 @@ impl Derive for ExtensionDecl {
         let mut inner = p.into_inner();
         let target = Expression::from_parse_tree(inner.next().expect("need identifier"), source);
         let inherits = if let Some(next) = inner.peek() {
-            if next.as_rule() == Rule::mixin_list {
-                let mixin_list = inner.next().unwrap();
-                mixin_list
+            if next.as_rule() == Rule::expr_list {
+                let expr_list = inner.next().unwrap();
+                expr_list
                     .into_inner()
                     .map(|expr| Expression::from_parse_tree(expr, source))
                     .collect()

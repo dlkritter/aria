@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: Apache-2.0
+
+mixin A {
+    func from_a() {
+        return "A";
+    }
+}
+
+mixin B {
+    func from_b() {
+        return "B";
+    }
+}
+
+mixin C {
+    func from_c() {
+        return "C";
+    }
+}
+
+# Test trailing comma with single mixin
+struct Single : A, {
+    type func new() {
+        return alloc(This);
+    }
+}
+
+# Test trailing comma with multiple mixins
+struct Multi : A, B, C, {
+    type func new() {
+        return alloc(This);
+    }
+}
+
+# Test no trailing comma still works
+struct NoTrailing : A, B {
+    type func new() {
+        return alloc(This);
+    }
+}
+
+# Test extension with trailing comma
+extension Int : A, B, {
+}
+
+func main() {
+    val s = Single.new();
+    assert s.from_a() == "A";
+    
+    val m = Multi.new();
+    assert m.from_a() == "A";
+    assert m.from_b() == "B";
+    assert m.from_c() == "C";
+    
+    val n = NoTrailing.new();
+    assert n.from_a() == "A";
+    assert n.from_b() == "B";
+    
+    assert 5.from_a() == "A";
+    assert 5.from_b() == "B";
+}
