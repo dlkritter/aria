@@ -98,7 +98,7 @@ pub(crate) fn file_eval(path: &str, args: &Args) -> i32 {
 
     let guard = if args.perf_trace_dest.is_some() {
         match pprof::ProfilerGuardBuilder::default()
-            .frequency(10000)
+            .frequency(1000)
             .blocklist(&["libc", "libgcc", "pthread", "vdso"])
             .build()
         {
