@@ -134,6 +134,43 @@ impl BuiltinFunctionImpl for GetAt {
 }
 
 #[derive(Default)]
+struct OpReadIndex {}
+impl BuiltinFunctionImpl for OpReadIndex {
+    fn eval(
+        &self,
+        frame: &mut Frame,
+        _: &mut crate::vm::VirtualMachine,
+    ) -> crate::vm::ExecutionResult<RunloopExit> {
+        let this = VmGlobals::extract_arg(frame, |x| x.as_list().cloned())?;
+        let index = VmGlobals::extract_arg(frame, |x| x.as_integer().cloned())?.raw_value();
+        let index = if index < 0 {
+            index + this.len() as i64
+        } else {
+            index
+        } as usize;
+        match this.get_at(index) {
+            Some(v) => {
+                frame.stack.push(v);
+                Ok(RunloopExit::Ok(()))
+            }
+            None => Err(VmErrorReason::IndexOutOfBounds(index).into()),
+        }
+    }
+
+    fn attrib_byte(&self) -> u8 {
+        FUNC_IS_METHOD
+    }
+
+    fn arity(&self) -> crate::arity::Arity {
+        crate::arity::Arity::required(2)
+    }
+
+    fn name(&self) -> &str {
+        "_op_impl_read_index"
+    }
+}
+
+#[derive(Default)]
 struct SetAt {}
 impl BuiltinFunctionImpl for SetAt {
     fn eval(
@@ -164,6 +201,44 @@ impl BuiltinFunctionImpl for SetAt {
 
     fn name(&self) -> &str {
         "_set_at"
+    }
+}
+
+#[derive(Default)]
+struct OpWriteIndex {}
+impl BuiltinFunctionImpl for OpWriteIndex {
+    fn eval(
+        &self,
+        frame: &mut Frame,
+        vm: &mut crate::vm::VirtualMachine,
+    ) -> crate::vm::ExecutionResult<RunloopExit> {
+        let this = VmGlobals::extract_arg(frame, |x| x.as_list().cloned())?;
+        let index = VmGlobals::extract_arg(frame, |x| x.as_integer().cloned())?.raw_value();
+        let index = if index < 0 {
+            index + this.len() as i64
+        } else {
+            index
+        } as usize;
+        let value = frame.stack.pop();
+        match this.set_at(index, value) {
+            Ok(_) => {
+                frame.stack.push(vm.globals.create_unit_object()?);
+                Ok(RunloopExit::Ok(()))
+            }
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    fn attrib_byte(&self) -> u8 {
+        FUNC_IS_METHOD
+    }
+
+    fn arity(&self) -> crate::arity::Arity {
+        crate::arity::Arity::required(3)
+    }
+
+    fn name(&self) -> &str {
+        "_op_impl_write_index"
     }
 }
 
@@ -204,7 +279,9 @@ pub(super) fn insert_list_builtins(builtins: &mut VmGlobals) {
     list_builtin.insert_builtin::<ListAppend>();
     list_builtin.insert_builtin::<Drop>();
     list_builtin.insert_builtin::<GetAt>();
+    list_builtin.insert_builtin::<OpReadIndex>();
     list_builtin.insert_builtin::<SetAt>();
+    list_builtin.insert_builtin::<OpWriteIndex>();
     list_builtin.insert_builtin::<NewWithCapacity>();
 
     builtins.register_builtin_type(
