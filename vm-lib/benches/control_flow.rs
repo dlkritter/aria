@@ -86,11 +86,61 @@ fn bench_empty_function_call(c: &mut Criterion) {
     bench_aria_code_aux("control_flow/empty_function_call", INPUT, c);
 }
 
+fn bench_list_read(c: &mut Criterion) {
+    const INPUT: &str = r#"
+    func foo(_) {}
+    func main() {
+        val x = [1,2,3,4,5,6,7,8,9,10];
+        val i = 0;
+        while i < x.len() {
+            foo(x[i]);
+            i += 1;
+        }
+    }
+    "#;
+
+    bench_aria_code_aux("control_flow/list_read", INPUT, c);
+}
+
+fn bench_object_read(c: &mut Criterion) {
+    const INPUT: &str = r#"
+    func foo(_) {}
+    func main() {
+        val x = Box(){
+            .a = 1,
+            .b = 2,
+            .c = 3,
+            .d = 4,
+            .e = 5,
+            .f = 6,
+            .g = 7,
+            .h = 8,
+            .i = 9,
+            .j = 10
+        };
+        foo(x.a);
+        foo(x.b);
+        foo(x.c);
+        foo(x.d);
+        foo(x.e);
+        foo(x.f);
+        foo(x.g);
+        foo(x.h);
+        foo(x.i);
+        foo(x.j);
+    }
+    "#;
+
+    bench_aria_code_aux("control_flow/object_read", INPUT, c);
+}
+
 criterion_group!(
     control_flow,
     bench_if,
     bench_for,
     bench_while,
-    bench_empty_function_call
+    bench_empty_function_call,
+    bench_list_read,
+    bench_object_read,
 );
 criterion_main!(control_flow);
