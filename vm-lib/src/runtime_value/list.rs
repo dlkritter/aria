@@ -7,6 +7,7 @@ use crate::{
     error::vm_error::{VmError, VmErrorReason},
     frame::Frame,
     runtime_value::object::ObjectBox,
+    symbol::Symbol,
     vm::{ExecutionResult, VirtualMachine},
 };
 
@@ -60,11 +61,11 @@ impl ListImpl {
         }
     }
 
-    fn read(&self, name: &str) -> Option<RuntimeValue> {
+    fn read(&self, name: Symbol) -> Option<RuntimeValue> {
         self.boxx.read(name)
     }
 
-    fn list_attributes(&self) -> FxHashSet<String> {
+    fn list_attributes(&self) -> FxHashSet<Symbol> {
         self.boxx.list_attributes()
     }
 }
@@ -156,11 +157,11 @@ impl List {
         }
     }
 
-    pub fn read(&self, name: &str) -> Option<RuntimeValue> {
+    pub fn read(&self, name: Symbol) -> Option<RuntimeValue> {
         self.imp.read(name)
     }
 
-    pub fn list_attributes(&self) -> FxHashSet<String> {
+    pub fn list_attributes(&self) -> FxHashSet<Symbol> {
         self.imp.list_attributes()
     }
 }

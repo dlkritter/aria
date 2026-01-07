@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
-    builtins::VmGlobals, error::vm_error::VmErrorReason, frame::Frame,
-    runtime_value::function::BuiltinFunctionImpl, vm::RunloopExit,
+    builtins::VmGlobals, frame::Frame, runtime_value::function::BuiltinFunctionImpl,
+    vm::RunloopExit,
 };
 
 #[derive(Default)]
@@ -14,27 +14,9 @@ impl BuiltinFunctionImpl for ReadAttr {
     ) -> crate::vm::ExecutionResult<RunloopExit> {
         let the_value = frame.stack.pop();
         let the_string = VmGlobals::extract_arg(frame, |x| x.as_string().cloned())?;
-        let result = the_value.read_attribute(&the_string.raw_value(), &vm.globals);
-        match result {
-            Ok(val) => {
-                frame.stack.push(val);
-                Ok(RunloopExit::Ok(()))
-            }
-            Err(e) => {
-                let er = match e {
-                    crate::runtime_value::AttributeError::NoSuchAttribute => {
-                        VmErrorReason::NoSuchIdentifier(the_string.raw_value())
-                    }
-                    crate::runtime_value::AttributeError::InvalidFunctionBinding => {
-                        VmErrorReason::InvalidBinding
-                    }
-                    crate::runtime_value::AttributeError::ValueHasNoAttributes => {
-                        VmErrorReason::UnexpectedType
-                    }
-                };
-                Err(er.into())
-            }
-        }
+        let result = the_value.read_attribute_by_name(&the_string.raw_value(), &mut vm.globals)?;
+        frame.stack.push(result);
+        Ok(RunloopExit::Ok(()))
     }
 
     fn arity(&self) -> crate::arity::Arity {

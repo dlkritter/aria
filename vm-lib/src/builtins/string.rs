@@ -288,7 +288,7 @@ impl BuiltinFunctionImpl for FromBytes {
     fn eval(
         &self,
         frame: &mut Frame,
-        _: &mut crate::vm::VirtualMachine,
+        vm: &mut crate::vm::VirtualMachine,
     ) -> crate::vm::ExecutionResult<RunloopExit> {
         let this_str_type = match frame
             .stack
@@ -317,8 +317,16 @@ impl BuiltinFunctionImpl for FromBytes {
         let dest = match String::from_utf8(bytes) {
             Ok(s) => s,
             Err(_) => {
+                let msg_sym = vm
+                    .globals
+                    .intern_symbol("msg")
+                    .expect("too many symbols interned");
+                let encoding_err_sym = vm
+                    .globals
+                    .intern_symbol("EncodingError")
+                    .expect("too many symbols interned");
                 let encoding_err_rv = this_str_type
-                    .read("EncodingError")
+                    .read(encoding_err_sym)
                     .ok_or_else(|| VmErrorReason::NoSuchIdentifier("EncodingError".to_owned()))?;
 
                 let encoding_err_struct = encoding_err_rv
@@ -327,7 +335,8 @@ impl BuiltinFunctionImpl for FromBytes {
 
                 return Ok(RunloopExit::throw_struct(
                     encoding_err_struct,
-                    &[("msg", RuntimeValue::String("invalid utf8".into()))],
+                    &[(msg_sym, RuntimeValue::String("invalid utf8".into()))],
+                    &mut vm.globals,
                 ));
             }
         };
@@ -585,21 +594,21 @@ pub(super) fn insert_string_builtins(builtins: &mut VmGlobals) {
     let string_builtin =
         RustNativeType::new(crate::runtime_value::rust_native_type::RustNativeValueKind::String);
 
-    string_builtin.insert_builtin::<StringLen>();
-    string_builtin.insert_builtin::<StringHasPrefix>();
-    string_builtin.insert_builtin::<StringHasSuffix>();
-    string_builtin.insert_builtin::<StringReplace>();
-    string_builtin.insert_builtin::<StringSplit>();
-    string_builtin.insert_builtin::<StringChars>();
-    string_builtin.insert_builtin::<StringBytes>();
-    string_builtin.insert_builtin::<ToNumericEncoding>();
-    string_builtin.insert_builtin::<FromBytes>();
-    string_builtin.insert_builtin::<TrimHead>();
-    string_builtin.insert_builtin::<TrimTail>();
-    string_builtin.insert_builtin::<Uppercase>();
-    string_builtin.insert_builtin::<Lowercase>();
-    string_builtin.insert_builtin::<Contains>();
-    string_builtin.insert_builtin::<GetAt>();
+    string_builtin.insert_builtin::<StringLen>(builtins);
+    string_builtin.insert_builtin::<StringHasPrefix>(builtins);
+    string_builtin.insert_builtin::<StringHasSuffix>(builtins);
+    string_builtin.insert_builtin::<StringReplace>(builtins);
+    string_builtin.insert_builtin::<StringSplit>(builtins);
+    string_builtin.insert_builtin::<StringChars>(builtins);
+    string_builtin.insert_builtin::<StringBytes>(builtins);
+    string_builtin.insert_builtin::<ToNumericEncoding>(builtins);
+    string_builtin.insert_builtin::<FromBytes>(builtins);
+    string_builtin.insert_builtin::<TrimHead>(builtins);
+    string_builtin.insert_builtin::<TrimTail>(builtins);
+    string_builtin.insert_builtin::<Uppercase>(builtins);
+    string_builtin.insert_builtin::<Lowercase>(builtins);
+    string_builtin.insert_builtin::<Contains>(builtins);
+    string_builtin.insert_builtin::<GetAt>(builtins);
 
     builtins.register_builtin_type(
         haxby_opcodes::BuiltinTypeId::String,

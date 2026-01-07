@@ -4,6 +4,8 @@ use std::rc::Rc;
 use haxby_opcodes::BuiltinTypeId;
 use rustc_data_structures::fx::FxHashSet;
 
+use crate::symbol::Symbol;
+
 use super::object::ObjectBox;
 
 pub(crate) struct BuiltinValueImpl<T>
@@ -19,7 +21,7 @@ impl<T> BuiltinValueImpl<T>
 where
     T: Clone,
 {
-    fn list_attributes(&self) -> FxHashSet<String> {
+    fn list_attributes(&self) -> FxHashSet<Symbol> {
         self.boxx.list_attributes()
     }
 }
@@ -93,7 +95,7 @@ where
         self.imp.val.clone()
     }
 
-    pub fn list_attributes(&self) -> FxHashSet<String> {
+    pub fn list_attributes(&self) -> FxHashSet<Symbol> {
         self.imp.list_attributes()
     }
 }

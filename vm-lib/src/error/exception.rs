@@ -10,6 +10,7 @@ use crate::{
         vm_error::{VmError, VmErrorReason},
     },
     runtime_value::{RuntimeValue, list::List, object::Object},
+    symbol::Symbol,
     vm::VirtualMachine,
 };
 
@@ -54,7 +55,7 @@ impl VmException {
 }
 
 impl VmException {
-    pub(crate) fn fill_in_backtrace(&self) {
+    pub(crate) fn fill_in_backtrace(&self, builtins: &mut VmGlobals) {
         let bt_list = List::from(&[]);
         for bt_entry in self.backtrace.entries_iter() {
             let buf_name = bt_entry.buffer.name.clone();
@@ -65,14 +66,14 @@ impl VmException {
             let buf_line = RuntimeValue::Integer((buf_line as i64).into());
             bt_list.append(RuntimeValue::List(List::from(&[buf_name, buf_line])));
         }
-        let _ = self
-            .value
-            .write_attribute("backtrace", RuntimeValue::List(bt_list));
+        let _ =
+            self.value
+                .write_attribute_by_name("backtrace", RuntimeValue::List(bt_list), builtins);
     }
 }
 
 impl VmException {
-    pub fn from_vmerror(err: VmError, builtins: &VmGlobals) -> Result<VmException, VmError> {
+    pub fn from_vmerror(err: VmError, builtins: &mut VmGlobals) -> Result<VmException, VmError> {
         macro_rules! some_or_err {
             ($opt:expr, $err:expr) => {
                 match $opt {
@@ -105,13 +106,26 @@ impl VmException {
                 payload: Some(RuntimeValue::Integer((*idx as i64).into())),
             },
             VmErrorReason::MismatchedArgumentCount(expected, actual) => {
-                let argc_mismatch = some_or_err!(rt_err.load_named_value("ArgcMismatch"), err);
+                let argc_mismatch = some_or_err!(
+                    rt_err.load_named_value(
+                        builtins
+                            .intern_symbol("ArgcMismatch")
+                            .expect("too many symbols interned")
+                    ),
+                    err
+                );
                 let argc_mismatch = some_or_err!(argc_mismatch.as_struct(), err);
                 let argc_mismatch_obj = RuntimeValue::Object(Object::new(argc_mismatch));
-                let _ = argc_mismatch_obj
-                    .write_attribute("expected", RuntimeValue::Integer((*expected as i64).into()));
-                let _ = argc_mismatch_obj
-                    .write_attribute("actual", RuntimeValue::Integer((*actual as i64).into()));
+                let _ = argc_mismatch_obj.write_attribute_by_name(
+                    "expected",
+                    RuntimeValue::Integer((*expected as i64).into()),
+                    builtins,
+                );
+                let _ = argc_mismatch_obj.write_attribute_by_name(
+                    "actual",
+                    RuntimeValue::Integer((*actual as i64).into()),
+                    builtins,
+                );
                 ExceptionData {
                     case: some_or_err!(rt_err.get_idx_of_case("MismatchedArgumentCount"), err),
                     payload: Some(argc_mismatch_obj),
@@ -125,6 +139,16 @@ impl VmException {
                 case: some_or_err!(rt_err.get_idx_of_case("NoSuchIdentifier"), err),
                 payload: Some(RuntimeValue::String(s.clone().into())),
             },
+            VmErrorReason::NoSuchSymbol(n) => {
+                if let Some(name_for_sym) = builtins.resolve_symbol(Symbol(*n)) {
+                    ExceptionData {
+                        case: some_or_err!(rt_err.get_idx_of_case("NoSuchIdentifier"), err),
+                        payload: Some(RuntimeValue::String(name_for_sym.to_owned().into())),
+                    }
+                } else {
+                    return Err(err);
+                }
+            }
             VmErrorReason::OperationFailed(s) => ExceptionData {
                 case: some_or_err!(rt_err.get_idx_of_case("OperationFailed"), err),
                 payload: Some(RuntimeValue::String(s.clone().into())),

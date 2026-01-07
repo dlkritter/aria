@@ -22,7 +22,7 @@ impl BuiltinFunctionImpl for System {
     fn eval(
         &self,
         cur_frame: &mut Frame,
-        _: &mut crate::vm::VirtualMachine,
+        vm: &mut crate::vm::VirtualMachine,
     ) -> crate::vm::ExecutionResult<RunloopExit> {
         let command = VmGlobals::extract_arg(cur_frame, |x| x.as_string().cloned())?;
 
@@ -36,17 +36,19 @@ impl BuiltinFunctionImpl for System {
                 let result = RuntimeValue::Integer(IntegerValue::from(
                     output.status.code().unwrap_or(-1) as i64,
                 ));
-                let _ = result.write_attribute(
+                let _ = result.write_attribute_by_name(
                     "stdout",
                     RuntimeValue::String(
                         String::from_utf8_lossy(&output.stdout).to_string().into(),
                     ),
+                    &mut vm.globals,
                 );
-                let _ = result.write_attribute(
+                let _ = result.write_attribute_by_name(
                     "stderr",
                     RuntimeValue::String(
                         String::from_utf8_lossy(&output.stderr).to_string().into(),
                     ),
+                    &mut vm.globals,
                 );
                 cur_frame.stack.push(result);
                 Ok(RunloopExit::Ok(()))

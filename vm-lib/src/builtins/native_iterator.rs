@@ -65,8 +65,12 @@ impl BuiltinFunctionImpl for Next {
     ) -> crate::vm::ExecutionResult<RunloopExit> {
         let aria_this = VmGlobals::extract_arg(frame, |x: RuntimeValue| x.as_object().cloned())?;
 
+        let impl_sym = vm
+            .globals
+            .intern_symbol("__impl")
+            .expect("too many symbols interned");
         let iterator_impl = aria_this
-            .read("__impl")
+            .read(impl_sym)
             .ok_or(VmErrorReason::UnexpectedVmState)?;
         let rust_native_iter = iterator_impl
             .as_opaque_concrete::<RefCell<NativeIteratorImpl>>()
@@ -95,12 +99,18 @@ impl BuiltinFunctionImpl for Next {
 }
 
 #[allow(unused)]
-pub fn create_iterator_struct(iter_struct: &Struct, imp: NativeIteratorImpl) -> RuntimeValue {
+pub fn create_iterator_struct(
+    iter_struct: &Struct,
+    imp: NativeIteratorImpl,
+    builtins: &mut VmGlobals,
+) -> RuntimeValue {
     let obj = RuntimeValue::Object(Object::new(iter_struct));
     let impl_attrib = OpaqueValue::new(RefCell::new(imp));
-    obj.write_attribute("__impl", RuntimeValue::Opaque(impl_attrib));
+    obj.write_attribute_by_name("__impl", RuntimeValue::Opaque(impl_attrib), builtins)
+        .expect("failed to write iterator impl");
     let next = Function::new_builtin::<Next>();
     let bound_next = obj.bind(next);
-    obj.write_attribute("next", bound_next);
+    obj.write_attribute_by_name("next", bound_next, builtins)
+        .expect("failed to write iterator next");
     obj
 }

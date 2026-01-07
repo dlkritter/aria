@@ -56,9 +56,10 @@ pub(super) fn insert_runtime_error_builtins(builtins: &mut VmGlobals) {
         ],
     )));
 
-    let _ = rt_err_enum.write_attribute(
+    let _ = rt_err_enum.write_attribute_by_name(
         "ArgcMismatch",
         RuntimeValue::Type(RuntimeValueType::Struct(argc_mismatch)),
+        builtins,
     );
 
     builtins.register_builtin_type(

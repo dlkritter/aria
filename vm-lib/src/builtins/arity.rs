@@ -37,8 +37,13 @@ impl Arity {
             let arity_struct = arity_struct
                 .as_struct()
                 .ok_or(VmErrorReason::UnexpectedType)?;
-            let upper_bound_enum =
-                arity_struct.load_named_value("UpperBound").ok_or_else(|| {
+            let upper_bound_enum = arity_struct
+                .load_named_value(
+                    vm.globals
+                        .intern_symbol("UpperBound")
+                        .expect("too many symbols interned"),
+                )
+                .ok_or_else(|| {
                     VmErrorReason::NoSuchIdentifier("aria.core.arity.Arity.UpperBound".to_owned())
                 })?;
             let upper_bound_enum = upper_bound_enum
@@ -74,7 +79,7 @@ fn get_to_function_for_callable(
         Some((f.clone(), false))
     } else if let Some(bf) = val.as_bound_function() {
         Some((bf.func().clone(), true))
-    } else if let Ok(call) = val.read_attribute("_op_impl_call", &vm.globals) {
+    } else if let Ok(call) = val.read_attribute_by_name("_op_impl_call", &mut vm.globals) {
         get_to_function_for_callable(&call, vm)
     } else {
         None
@@ -116,9 +121,24 @@ impl BuiltinFunctionImpl for Arity {
             RuntimeValue::Integer(((f_arity.required - argc_offset) as i64).into());
 
         let arity_object = Object::new(&arity_cache.arity_struct)
-            .with_value("min", lower_bound_value)
-            .with_value("max", upper_bound_value)
-            .with_value("has_receiver", RuntimeValue::Boolean(has_receiver.into()));
+            .with_value(
+                vm.globals
+                    .intern_symbol("min")
+                    .expect("too many symbols interned"),
+                lower_bound_value,
+            )
+            .with_value(
+                vm.globals
+                    .intern_symbol("max")
+                    .expect("too many symbols interned"),
+                upper_bound_value,
+            )
+            .with_value(
+                vm.globals
+                    .intern_symbol("has_receiver")
+                    .expect("too many symbols interned"),
+                RuntimeValue::Boolean(has_receiver.into()),
+            );
 
         frame.stack.push(RuntimeValue::Object(arity_object));
         Ok(RunloopExit::Ok(()))

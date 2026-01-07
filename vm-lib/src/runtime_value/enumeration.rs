@@ -4,10 +4,14 @@ use std::{cell::RefCell, rc::Rc};
 
 use rustc_data_structures::fx::FxHashSet;
 
-use crate::runtime_value::{
-    function::{BuiltinFunctionImpl, Function},
-    isa::IsaCheckable,
-    object::ObjectBox,
+use crate::{
+    builtins::VmGlobals,
+    runtime_value::{
+        function::{BuiltinFunctionImpl, Function},
+        isa::IsaCheckable,
+        object::ObjectBox,
+    },
+    symbol::Symbol,
 };
 
 use super::{
@@ -68,7 +72,7 @@ impl EnumImpl {
         None
     }
 
-    fn load_named_value(&self, name: &str) -> Option<RuntimeValue> {
+    fn load_named_value(&self, name: Symbol) -> Option<RuntimeValue> {
         if let Some(nv) = self.entries.read(name) {
             Some(nv.clone())
         } else {
@@ -76,7 +80,7 @@ impl EnumImpl {
         }
     }
 
-    fn store_named_value(&self, name: &str, val: RuntimeValue) {
+    fn store_named_value(&self, name: Symbol, val: RuntimeValue) {
         self.entries.write(name, val);
     }
 
@@ -88,7 +92,7 @@ impl EnumImpl {
         self.mixins.borrow().contains(mixin)
     }
 
-    fn list_attributes(&self) -> FxHashSet<String> {
+    fn list_attributes(&self) -> FxHashSet<Symbol> {
         let mut attrs = self.entries.keys();
         attrs.extend(self.mixins.borrow().list_attributes());
         attrs
@@ -129,7 +133,7 @@ impl Enum {
         self.imp.get_case_by_idx(idx)
     }
 
-    pub fn load_named_value(&self, name: &str) -> Option<RuntimeValue> {
+    pub fn load_named_value(&self, name: Symbol) -> Option<RuntimeValue> {
         self.imp.load_named_value(name)
     }
 
@@ -160,18 +164,20 @@ impl Enum {
         }
     }
 
-    pub fn list_attributes(&self) -> FxHashSet<String> {
+    pub fn list_attributes(&self) -> FxHashSet<Symbol> {
         self.imp.list_attributes()
     }
 
-    pub fn insert_builtin<T>(&self)
+    pub fn insert_builtin<T>(&self, builtins: &mut VmGlobals)
     where
         T: 'static + Default + BuiltinFunctionImpl,
     {
         let t = T::default();
-        let name = t.name().to_owned();
+        let name = builtins
+            .intern_symbol(t.name())
+            .expect("too many symbols interned");
         self.imp
-            .store_named_value(&name, RuntimeValue::Function(Function::builtin_from(t)));
+            .store_named_value(name, RuntimeValue::Function(Function::builtin_from(t)));
     }
 }
 

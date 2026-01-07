@@ -4,6 +4,8 @@ use std::{cell::RefCell, rc::Rc};
 use enum_as_inner::EnumAsInner;
 use rustc_data_structures::fx::FxHashSet;
 
+use crate::symbol::Symbol;
+
 use super::{
     RuntimeValue,
     function::{BuiltinFunctionImpl, Function},
@@ -28,11 +30,11 @@ struct RustNativeTypeImpl {
 }
 
 impl RustNativeTypeImpl {
-    fn write(&self, name: &str, val: RuntimeValue) {
+    fn write(&self, name: Symbol, val: RuntimeValue) {
         self.boxx.write(name, val)
     }
 
-    fn read(&self, name: &str) -> Option<RuntimeValue> {
+    fn read(&self, name: Symbol) -> Option<RuntimeValue> {
         match self.boxx.read(name) {
             Some(nv) => Some(nv),
             _ => self.mixins.borrow().load_named_value(name),
@@ -47,7 +49,7 @@ impl RustNativeTypeImpl {
         self.mixins.borrow().contains(mixin)
     }
 
-    fn list_attributes(&self) -> FxHashSet<String> {
+    fn list_attributes(&self) -> FxHashSet<Symbol> {
         let mut attrs = self.boxx.list_attributes();
         attrs.extend(self.mixins.borrow().list_attributes());
         attrs
@@ -78,11 +80,11 @@ impl RustNativeType {
         &self.imp.boxx
     }
 
-    pub(crate) fn write(&self, name: &str, val: RuntimeValue) {
+    pub(crate) fn write(&self, name: Symbol, val: RuntimeValue) {
         self.imp.write(name, val);
     }
 
-    pub fn read(&self, name: &str) -> Option<RuntimeValue> {
+    pub fn read(&self, name: Symbol) -> Option<RuntimeValue> {
         self.imp.read(name)
     }
 
@@ -94,17 +96,19 @@ impl RustNativeType {
         self.imp.isa_mixin(mixin)
     }
 
-    pub fn insert_builtin<T>(&self)
+    pub fn insert_builtin<T>(&self, builtins: &mut crate::builtins::VmGlobals)
     where
         T: 'static + Default + BuiltinFunctionImpl,
     {
         let t = T::default();
-        let name = t.name().to_owned();
+        let name = builtins
+            .intern_symbol(t.name())
+            .expect("too many symbols interned");
         self.get_boxx()
-            .write(&name, RuntimeValue::Function(Function::builtin_from(t)));
+            .write(name, RuntimeValue::Function(Function::builtin_from(t)));
     }
 
-    pub fn list_attributes(&self) -> FxHashSet<String> {
+    pub fn list_attributes(&self) -> FxHashSet<Symbol> {
         self.imp.list_attributes()
     }
 }

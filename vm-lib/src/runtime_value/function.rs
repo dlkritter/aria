@@ -13,6 +13,7 @@ use crate::{
     arity::Arity,
     frame::Frame,
     runtime_module::RuntimeModule,
+    symbol::Symbol,
     vm::{ExecutionResult, RunloopExit, VirtualMachine},
 };
 
@@ -230,7 +231,7 @@ impl FunctionImpl {
         Self::BytecodeFunction(bcf)
     }
 
-    fn read(&self, name: &str) -> Option<RuntimeValue> {
+    fn read(&self, name: Symbol) -> Option<RuntimeValue> {
         match self {
             FunctionImpl::BytecodeFunction(b) => &b.boxx,
             FunctionImpl::BuiltinFunction(b) => &b.boxx,
@@ -238,7 +239,7 @@ impl FunctionImpl {
         .read(name)
     }
 
-    fn list_attributes(&self) -> FxHashSet<String> {
+    fn list_attributes(&self) -> FxHashSet<Symbol> {
         match self {
             FunctionImpl::BytecodeFunction(b) => b.boxx.list_attributes(),
             FunctionImpl::BuiltinFunction(b) => b.boxx.list_attributes(),
@@ -380,11 +381,11 @@ impl Function {
         }
     }
 
-    pub fn read(&self, name: &str) -> Option<RuntimeValue> {
+    pub fn read(&self, name: Symbol) -> Option<RuntimeValue> {
         self.imp.read(name)
     }
 
-    pub fn list_attributes(&self) -> FxHashSet<String> {
+    pub fn list_attributes(&self) -> FxHashSet<Symbol> {
         self.imp.list_attributes()
     }
 }

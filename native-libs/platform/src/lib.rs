@@ -14,7 +14,7 @@ impl BuiltinFunctionImpl for GetPlatformInfo {
     fn eval(
         &self,
         frame: &mut Frame,
-        _: &mut haxby_vm::vm::VirtualMachine,
+        vm: &mut haxby_vm::vm::VirtualMachine,
     ) -> haxby_vm::vm::ExecutionResult<RunloopExit> {
         use haxby_vm::{error::vm_error::VmErrorReason, runtime_value::object::Object};
 
@@ -25,16 +25,25 @@ impl BuiltinFunctionImpl for GetPlatformInfo {
 
         let platform_enum = VmGlobals::extract_arg(frame, |x: RuntimeValue| x.as_enum().cloned())?;
 
+        let linux_platform_sym = vm
+            .globals
+            .intern_symbol("LinuxPlatform")
+            .expect("too many symbols interned");
         let linux_info = platform_enum
-            .load_named_value("LinuxPlatform")
+            .load_named_value(linux_platform_sym)
             .ok_or(VmErrorReason::UnexpectedVmState)?;
         let linux_info = linux_info
             .as_struct()
             .ok_or(VmErrorReason::UnexpectedVmState)?;
         let linux_info = RuntimeValue::Object(Object::new(linux_info));
+        let kernel_version_sym = vm
+            .globals
+            .intern_symbol("kernel_version")
+            .expect("too many symbols interned");
         let _ = linux_info.write_attribute(
-            "kernel_version",
+            kernel_version_sym,
             RuntimeValue::String(kernel_version.into()),
+            &mut vm.globals,
         );
 
         let linux_case = platform_enum
@@ -55,7 +64,7 @@ impl BuiltinFunctionImpl for GetPlatformInfo {
     fn eval(
         &self,
         frame: &mut Frame,
-        _: &mut haxby_vm::vm::VirtualMachine,
+        vm: &mut haxby_vm::vm::VirtualMachine,
     ) -> haxby_vm::vm::ExecutionResult<RunloopExit> {
         use haxby_vm::{error::vm_error::VmErrorReason, runtime_value::object::Object};
 
@@ -72,14 +81,26 @@ impl BuiltinFunctionImpl for GetPlatformInfo {
 
         let platform_enum = VmGlobals::extract_arg(frame, |x: RuntimeValue| x.as_enum().cloned())?;
 
+        let mac_platform_sym = vm
+            .globals
+            .intern_symbol("macOSPlatform")
+            .expect("too many symbols interned");
         let mac_info = platform_enum
-            .load_named_value("macOSPlatform")
+            .load_named_value(mac_platform_sym)
             .ok_or(VmErrorReason::UnexpectedVmState)?;
         let mac_info = mac_info
             .as_struct()
             .ok_or(VmErrorReason::UnexpectedVmState)?;
         let mac_info = RuntimeValue::Object(Object::new(mac_info));
-        let _ = mac_info.write_attribute("os_build", RuntimeValue::String(mac_version.into()));
+        let os_build_sym = vm
+            .globals
+            .intern_symbol("os_build")
+            .expect("too many symbols interned");
+        let _ = mac_info.write_attribute(
+            os_build_sym,
+            RuntimeValue::String(mac_version.into()),
+            &mut vm.globals,
+        );
 
         let mac_case = platform_enum
             .get_idx_of_case("macOS")
@@ -133,11 +154,16 @@ impl BuiltinFunctionImpl for GetPlatformInfo {
 #[unsafe(no_mangle)]
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn dylib_haxby_inject(
-    _: *const haxby_vm::vm::VirtualMachine,
+    vm: *const haxby_vm::vm::VirtualMachine,
     module: *const RuntimeModule,
 ) -> LoadResult {
-    match unsafe { module.as_ref() } {
-        Some(module) => {
+    match unsafe {
+        (
+            (vm as *mut haxby_vm::vm::VirtualMachine).as_mut(),
+            module.as_ref(),
+        )
+    } {
+        (Some(vm), Some(module)) => {
             let platform = match module.load_named_value("Platform") {
                 Some(platform) => platform,
                 None => {
@@ -152,10 +178,10 @@ pub extern "C" fn dylib_haxby_inject(
                 }
             };
 
-            platform_enum.insert_builtin::<GetPlatformInfo>();
+            platform_enum.insert_builtin::<GetPlatformInfo>(&mut vm.globals);
 
             LoadResult::success()
         }
-        None => LoadResult::error("invalid platform module"),
+        _ => LoadResult::error("invalid platform module"),
     }
 }

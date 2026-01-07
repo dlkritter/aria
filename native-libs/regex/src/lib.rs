@@ -16,9 +16,13 @@ use haxby_vm::{
 fn create_regex_error(
     regex_struct: &Struct,
     message: String,
+    builtins: &mut VmGlobals,
 ) -> Result<RuntimeValue, VmErrorReason> {
+    let error_sym = builtins
+        .intern_symbol("Error")
+        .expect("too many symbols interned");
     let regex_error = regex_struct
-        .load_named_value("Error")
+        .load_named_value(error_sym)
         .ok_or(VmErrorReason::UnexpectedVmState)?;
 
     let regex_error = regex_error
@@ -26,7 +30,10 @@ fn create_regex_error(
         .ok_or(VmErrorReason::UnexpectedType)?;
 
     let regex_error = RuntimeValue::Object(Object::new(regex_error));
-    let _ = regex_error.write_attribute("msg", RuntimeValue::String(message.into()));
+    let msg_sym = builtins
+        .intern_symbol("msg")
+        .expect("too many symbols interned");
+    let _ = regex_error.write_attribute(msg_sym, RuntimeValue::String(message.into()), builtins);
 
     Ok(regex_error)
 }
@@ -34,14 +41,14 @@ fn create_regex_error(
 #[derive(Default)]
 struct New {}
 impl BuiltinFunctionImpl for New {
-    fn eval(&self, frame: &mut Frame, _: &mut VirtualMachine) -> ExecutionResult<RunloopExit> {
+    fn eval(&self, frame: &mut Frame, vm: &mut VirtualMachine) -> ExecutionResult<RunloopExit> {
         let the_struct = VmGlobals::extract_arg(frame, |x: RuntimeValue| x.as_struct().cloned())?;
         let the_pattern = VmGlobals::extract_arg(frame, |x: RuntimeValue| x.as_string().cloned())?;
 
         let rust_regex_obj = match regex::Regex::new(&the_pattern.raw_value()) {
             Ok(s) => s,
             Err(e) => {
-                let err = create_regex_error(&the_struct, e.to_string());
+                let err = create_regex_error(&the_struct, e.to_string(), &mut vm.globals);
                 return match err {
                     Ok(s) => Ok(RunloopExit::Exception(VmException::from_value(s))),
                     Err(e) => Err(e.into()),
@@ -52,8 +59,24 @@ impl BuiltinFunctionImpl for New {
         let rust_regex_obj = OpaqueValue::new(rust_regex_obj);
 
         let aria_regex_obj = RuntimeValue::Object(Object::new(&the_struct));
-        let _ = aria_regex_obj.write_attribute("__pattern", RuntimeValue::Opaque(rust_regex_obj));
-        let _ = aria_regex_obj.write_attribute("pattern", RuntimeValue::String(the_pattern));
+        let pattern_impl_sym = vm
+            .globals
+            .intern_symbol("__pattern")
+            .expect("too many symbols interned");
+        let pattern_sym = vm
+            .globals
+            .intern_symbol("pattern")
+            .expect("too many symbols interned");
+        let _ = aria_regex_obj.write_attribute(
+            pattern_impl_sym,
+            RuntimeValue::Opaque(rust_regex_obj),
+            &mut vm.globals,
+        );
+        let _ = aria_regex_obj.write_attribute(
+            pattern_sym,
+            RuntimeValue::String(the_pattern),
+            &mut vm.globals,
+        );
 
         frame.stack.push(aria_regex_obj);
         Ok(RunloopExit::Ok(()))
@@ -75,11 +98,15 @@ impl BuiltinFunctionImpl for New {
 #[derive(Default)]
 struct AnyMatch {}
 impl BuiltinFunctionImpl for AnyMatch {
-    fn eval(&self, frame: &mut Frame, _: &mut VirtualMachine) -> ExecutionResult<RunloopExit> {
+    fn eval(&self, frame: &mut Frame, vm: &mut VirtualMachine) -> ExecutionResult<RunloopExit> {
         let aria_regex = VmGlobals::extract_arg(frame, |x: RuntimeValue| x.as_object().cloned())?;
         let the_haystack = VmGlobals::extract_arg(frame, |x: RuntimeValue| x.as_string().cloned())?;
 
-        let rust_regex_obj = match aria_regex.read("__pattern") {
+        let pattern_sym = vm
+            .globals
+            .lookup_symbol("__pattern")
+            .ok_or(VmErrorReason::UnexpectedVmState)?;
+        let rust_regex_obj = match aria_regex.read(pattern_sym) {
             Some(s) => s,
             None => return Err(VmErrorReason::UnexpectedVmState.into()),
         };
@@ -110,15 +137,23 @@ impl BuiltinFunctionImpl for AnyMatch {
 #[derive(Default)]
 struct Matches {}
 impl BuiltinFunctionImpl for Matches {
-    fn eval(&self, frame: &mut Frame, _: &mut VirtualMachine) -> ExecutionResult<RunloopExit> {
+    fn eval(&self, frame: &mut Frame, vm: &mut VirtualMachine) -> ExecutionResult<RunloopExit> {
         let aria_regex = VmGlobals::extract_arg(frame, |x: RuntimeValue| x.as_object().cloned())?;
         let aria_struct = aria_regex.get_struct().clone();
         let the_haystack =
             VmGlobals::extract_arg(frame, |x: RuntimeValue| x.as_string().cloned())?.raw_value();
 
-        let match_struct_type = aria_struct.extract_field("Match", |e| e.as_struct().cloned())?;
+        let match_sym = vm
+            .globals
+            .intern_symbol("Match")
+            .expect("too many symbols interned");
+        let match_struct_type = aria_struct.extract_field(match_sym, |e| e.as_struct().cloned())?;
 
-        let rust_regex_obj = match aria_regex.read("__pattern") {
+        let pattern_sym = vm
+            .globals
+            .lookup_symbol("__pattern")
+            .ok_or(VmErrorReason::UnexpectedVmState)?;
+        let rust_regex_obj = match aria_regex.read(pattern_sym) {
             Some(s) => s,
             None => return Err(VmErrorReason::UnexpectedVmState.into()),
         };
@@ -133,11 +168,35 @@ impl BuiltinFunctionImpl for Matches {
             .collect();
 
         let matches_list = List::default();
+        let start_sym = vm
+            .globals
+            .intern_symbol("start")
+            .expect("too many symbols interned");
+        let len_sym = vm
+            .globals
+            .intern_symbol("len")
+            .expect("too many symbols interned");
+        let value_sym = vm
+            .globals
+            .intern_symbol("value")
+            .expect("too many symbols interned");
         for m in matches {
             let match_obj = RuntimeValue::Object(Object::new(&match_struct_type));
-            let _ = match_obj.write_attribute("start", RuntimeValue::Integer(m.0.into()));
-            let _ = match_obj.write_attribute("len", RuntimeValue::Integer(m.1.into()));
-            let _ = match_obj.write_attribute("value", RuntimeValue::String(m.2.into()));
+            let _ = match_obj.write_attribute(
+                start_sym,
+                RuntimeValue::Integer(m.0.into()),
+                &mut vm.globals,
+            );
+            let _ = match_obj.write_attribute(
+                len_sym,
+                RuntimeValue::Integer(m.1.into()),
+                &mut vm.globals,
+            );
+            let _ = match_obj.write_attribute(
+                value_sym,
+                RuntimeValue::String(m.2.into()),
+                &mut vm.globals,
+            );
             matches_list.append(match_obj);
         }
 
@@ -161,7 +220,7 @@ impl BuiltinFunctionImpl for Matches {
 #[derive(Default)]
 struct Replace {}
 impl BuiltinFunctionImpl for Replace {
-    fn eval(&self, frame: &mut Frame, _: &mut VirtualMachine) -> ExecutionResult<RunloopExit> {
+    fn eval(&self, frame: &mut Frame, vm: &mut VirtualMachine) -> ExecutionResult<RunloopExit> {
         let aria_regex = VmGlobals::extract_arg(frame, |x: RuntimeValue| x.as_object().cloned())?;
 
         let the_haystack =
@@ -170,7 +229,11 @@ impl BuiltinFunctionImpl for Replace {
         let new_value =
             VmGlobals::extract_arg(frame, |x: RuntimeValue| x.as_string().cloned())?.raw_value();
 
-        let rust_regex_obj = match aria_regex.read("__pattern") {
+        let pattern_sym = vm
+            .globals
+            .lookup_symbol("__pattern")
+            .ok_or(VmErrorReason::UnexpectedVmState)?;
+        let rust_regex_obj = match aria_regex.read(pattern_sym) {
             Some(s) => s,
             None => return Err(VmErrorReason::UnexpectedVmState.into()),
         };
@@ -203,11 +266,16 @@ impl BuiltinFunctionImpl for Replace {
 #[unsafe(no_mangle)]
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn dylib_haxby_inject(
-    _: *const haxby_vm::vm::VirtualMachine,
+    vm: *const haxby_vm::vm::VirtualMachine,
     module: *const RuntimeModule,
 ) -> LoadResult {
-    match unsafe { module.as_ref() } {
-        Some(module) => {
+    match unsafe {
+        (
+            (vm as *mut haxby_vm::vm::VirtualMachine).as_mut(),
+            module.as_ref(),
+        )
+    } {
+        (Some(vm), Some(module)) => {
             let regex = match module.load_named_value("Regex") {
                 Some(regex) => regex,
                 None => {
@@ -222,13 +290,13 @@ pub extern "C" fn dylib_haxby_inject(
                 }
             };
 
-            regex.insert_builtin::<New>();
-            regex.insert_builtin::<AnyMatch>();
-            regex.insert_builtin::<Matches>();
-            regex.insert_builtin::<Replace>();
+            regex.insert_builtin::<New>(&mut vm.globals);
+            regex.insert_builtin::<AnyMatch>(&mut vm.globals);
+            regex.insert_builtin::<Matches>(&mut vm.globals);
+            regex.insert_builtin::<Replace>(&mut vm.globals);
 
             LoadResult::success()
         }
-        None => LoadResult::error("invalid regex module"),
+        _ => LoadResult::error("invalid regex module"),
     }
 }

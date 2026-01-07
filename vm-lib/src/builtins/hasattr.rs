@@ -17,7 +17,7 @@ impl BuiltinFunctionImpl for HasAttr {
         let the_value = frame.stack.pop();
         let the_string = VmGlobals::extract_arg(frame, |x| x.as_string().cloned())?;
         let has_attr = the_value
-            .read_attribute(&the_string.raw_value(), &vm.globals)
+            .read_attribute_by_name(&the_string.raw_value(), &mut vm.globals)
             .is_ok();
         frame.stack.push(RuntimeValue::Boolean(has_attr.into()));
         Ok(RunloopExit::Ok(()))

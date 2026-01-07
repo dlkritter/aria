@@ -171,20 +171,26 @@ impl VmGlobals {
         })
     }
 
+    pub fn lookup_symbol(&self, s: &str) -> Option<crate::symbol::Symbol> {
+        self.interner.lookup(s)
+    }
+
     pub fn resolve_symbol(&self, sym: crate::symbol::Symbol) -> Option<&str> {
         self.interner.resolve(sym)
     }
 
     pub fn load_named_value(&self, name: &str) -> Option<RuntimeValue> {
-        self.values.read(name)
+        let sym = self.lookup_symbol(name)?;
+        self.values.read(sym)
     }
 
-    pub fn insert(&self, name: &str, val: RuntimeValue) {
-        if self.values.contains(name) {
+    pub fn insert(&mut self, name: &str, val: RuntimeValue) {
+        let sym = self.intern_symbol(name).expect("too many symbols interned");
+        if self.values.contains(sym) {
             panic!("duplicate builtin {name}");
         }
 
-        self.values.write(name, val);
+        self.values.write(sym, val);
     }
 
     #[deprecated(note = "use get_builtin_type_by_id instead")]

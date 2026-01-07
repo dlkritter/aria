@@ -28,6 +28,7 @@ use crate::{
     frame::Frame,
     runtime_module::RuntimeModule,
     runtime_value::isa::IsaCheckable,
+    symbol::Symbol,
     vm::{ExecutionResult, VirtualMachine},
 };
 
@@ -200,7 +201,7 @@ impl RuntimeValue {
         cur_frame: &mut Frame,
         vm: &mut VirtualMachine,
     ) -> bool {
-        if let Ok(op_equals) = lhs.read_attribute("_op_impl_equals", &vm.globals) {
+        if let Ok(op_equals) = lhs.read_attribute_by_name("_op_impl_equals", &mut vm.globals) {
             match RuntimeValue::try_eval_rel_op(op_equals, rhs, cur_frame, vm) {
                 OperatorEvalAttemptOutcome::Ok(val) => {
                     return val;
@@ -221,7 +222,7 @@ impl RuntimeValue {
             return lhs.builtin_equals(rhs, cur_frame, vm);
         }
 
-        if let Ok(op_equals) = rhs.read_attribute("_op_impl_equals", &vm.globals) {
+        if let Ok(op_equals) = rhs.read_attribute_by_name("_op_impl_equals", &mut vm.globals) {
             return match RuntimeValue::try_eval_rel_op(op_equals, lhs, cur_frame, vm) {
                 OperatorEvalAttemptOutcome::Ok(val) => val,
                 OperatorEvalAttemptOutcome::Exception(_)
@@ -246,7 +247,7 @@ macro_rules! rel_op_impl {
                 vm: &mut VirtualMachine,
             ) -> OperatorEvalOutcome<RuntimeValue> {
                 let func_name = concat!("_op_impl_", stringify!($aria_fwd_name));
-                if let Ok(op) = lhs.read_attribute(func_name, &vm.globals) {
+                if let Ok(op) = lhs.read_attribute_by_name(func_name, &mut vm.globals) {
                     match RuntimeValue::try_eval_rel_op(op, rhs, cur_frame, vm) {
                         OperatorEvalAttemptOutcome::Ok(rv) => {
                             return OperatorEvalOutcome::Ok(RuntimeValue::Boolean(rv.into()));
@@ -268,7 +269,7 @@ macro_rules! rel_op_impl {
                 }
 
                 let func_name = concat!("_op_impl_", stringify!($aria_rev_name));
-                if let Ok(op) = rhs.read_attribute(func_name, &vm.globals) {
+                if let Ok(op) = rhs.read_attribute_by_name(func_name, &mut vm.globals) {
                     match RuntimeValue::try_eval_rel_op(op, lhs, cur_frame, vm) {
                         OperatorEvalAttemptOutcome::Ok(rv) => {
                             return OperatorEvalOutcome::Ok(RuntimeValue::Boolean(rv.into()));
@@ -299,7 +300,7 @@ macro_rules! bin_op_impl {
                 vm: &mut VirtualMachine,
             ) -> OperatorEvalOutcome<RuntimeValue> {
                 let func_name = concat!("_op_impl_", stringify!($aria_fn_name));
-                if let Ok(op) = lhs.read_attribute(func_name, &vm.globals) {
+                if let Ok(op) = lhs.read_attribute_by_name(func_name, &mut vm.globals) {
                     match RuntimeValue::try_eval_bin_op(op, rhs, cur_frame, vm) {
                         OperatorEvalAttemptOutcome::Ok(rv) => {
                             return OperatorEvalOutcome::Ok(rv);
@@ -321,7 +322,7 @@ macro_rules! bin_op_impl {
                 }
 
                 let func_name = concat!("_op_impl_r", stringify!($aria_fn_name));
-                if let Ok(op) = rhs.read_attribute(func_name, &vm.globals) {
+                if let Ok(op) = rhs.read_attribute_by_name(func_name, &mut vm.globals) {
                     match RuntimeValue::try_eval_bin_op(op, lhs, cur_frame, vm) {
                         OperatorEvalAttemptOutcome::Ok(rv) => OperatorEvalOutcome::Ok(rv),
                         OperatorEvalAttemptOutcome::Exception(e) => {
@@ -348,9 +349,10 @@ macro_rules! unary_op_impl {
                 cur_frame: &mut Frame,
                 vm: &mut VirtualMachine,
             ) -> OperatorEvalOutcome<RuntimeValue> {
-                if let Ok(op) =
-                    obj.read_attribute(concat!("_op_impl_", stringify!($aria_fn_name)), &vm.globals)
-                {
+                if let Ok(op) = obj.read_attribute_by_name(
+                    concat!("_op_impl_", stringify!($aria_fn_name)),
+                    &mut vm.globals,
+                ) {
                     match RuntimeValue::try_eval_unary_op(op, cur_frame, vm) {
                         OperatorEvalAttemptOutcome::Ok(rv) => OperatorEvalOutcome::Ok(rv),
                         OperatorEvalAttemptOutcome::Exception(e) => {
@@ -438,6 +440,7 @@ impl TryFrom<&ConstantValue> for RuntimeValue {
     }
 }
 
+#[derive(Debug)]
 pub enum AttributeError {
     NoSuchAttribute,
     InvalidFunctionBinding,
@@ -538,7 +541,7 @@ impl RuntimeValue {
         } else if let Some(bf) = self.as_bound_function() {
             bf.eval(argc, cur_frame, vm, discard_result)
         } else {
-            match self.read_attribute("_op_impl_call", &vm.globals) {
+            match self.read_attribute_by_name("_op_impl_call", &mut vm.globals) {
                 Ok(op_call) => op_call.eval(argc, cur_frame, vm, discard_result),
                 _ => Err(crate::error::vm_error::VmErrorReason::UnexpectedType.into()),
             }
@@ -546,7 +549,7 @@ impl RuntimeValue {
     }
 
     pub fn prettyprint(&self, cur_frame: &mut Frame, vm: &mut VirtualMachine) -> String {
-        if let Ok(ppf) = self.read_attribute("prettyprint", &vm.globals)
+        if let Ok(ppf) = self.read_attribute_by_name("prettyprint", &mut vm.globals)
             && ppf.eval(0, cur_frame, vm, false).is_ok()
         {
             // either check that the stack is doing ok - or have eval return the value
@@ -582,14 +585,17 @@ impl RuntimeValue {
 
     pub fn write_attribute(
         &self,
-        attr_name: &str,
+        attrib_sym: Symbol,
         val: RuntimeValue,
+        builtins: &mut VmGlobals,
     ) -> Result<(), AttributeError> {
-        if let Some(rm) = self.as_module() {
+        if let Some(rm) = self.as_module()
+            && let Some(attr_name) = builtins.resolve_symbol(attrib_sym)
+        {
             rm.store_named_value(attr_name, val);
             Ok(())
         } else if let Some(ob) = self.get_attribute_store() {
-            ob.write(attr_name, val);
+            ob.write(attrib_sym, val);
             Ok(())
         } else {
             Err(AttributeError::ValueHasNoAttributes)
@@ -597,62 +603,108 @@ impl RuntimeValue {
     }
 
     pub fn list_attributes(&self, builtins: &VmGlobals) -> Vec<String> {
+        let mut resolved = rustc_data_structures::fx::FxHashSet::default();
+        let mut push_resolved = |symbols: rustc_data_structures::fx::FxHashSet<Symbol>| {
+            for sym in symbols {
+                if let Some(name) = builtins.resolve_symbol(sym) {
+                    resolved.insert(name.to_owned());
+                }
+            }
+        };
+
         if let Some(obj) = self.as_object() {
             let mut attrs = obj.list_attributes();
             attrs.extend(obj.get_struct().list_attributes());
-            attrs.iter().cloned().collect()
+            push_resolved(attrs);
         } else if let Some(mixin) = self.as_mixin() {
-            mixin.list_attributes().iter().cloned().collect()
+            push_resolved(mixin.list_attributes());
         } else if let Some(enumm) = self.as_enum_value() {
-            enumm
-                .get_container_enum()
-                .list_attributes()
-                .iter()
-                .cloned()
-                .collect()
+            push_resolved(enumm.get_container_enum().list_attributes());
         } else if let Some(i) = self.as_integer() {
             let mut attrs = i.list_attributes();
             let bt = builtins.get_builtin_type_by_id(BuiltinTypeId::Int);
             attrs.extend(bt.list_attributes());
-            attrs.iter().cloned().collect()
+            push_resolved(attrs);
         } else if let Some(i) = self.as_float() {
             let mut attrs = i.list_attributes();
             let bt = builtins.get_builtin_type_by_id(BuiltinTypeId::Float);
             attrs.extend(bt.list_attributes());
-            attrs.iter().cloned().collect()
+            push_resolved(attrs);
         } else if let Some(s) = self.as_string() {
             let mut attrs = s.list_attributes();
             let bt = builtins.get_builtin_type_by_id(BuiltinTypeId::String);
             attrs.extend(bt.list_attributes());
-            attrs.iter().cloned().collect()
+            push_resolved(attrs);
         } else if let Some(b) = self.as_boolean() {
             let mut attrs = b.list_attributes();
             let bt = builtins.get_builtin_type_by_id(BuiltinTypeId::Bool);
             attrs.extend(bt.list_attributes());
-            attrs.iter().cloned().collect()
+            push_resolved(attrs);
         } else if let Some(l) = self.as_list() {
             let mut attrs = l.list_attributes();
             let bt = builtins.get_builtin_type_by_id(BuiltinTypeId::List);
             attrs.extend(bt.list_attributes());
-            attrs.iter().cloned().collect()
+            push_resolved(attrs);
         } else if let Some(f) = self.as_function() {
-            f.list_attributes().iter().cloned().collect()
+            push_resolved(f.list_attributes());
         } else if let Some(m) = self.as_module() {
-            m.list_named_values().iter().cloned().collect()
+            resolved.extend(m.list_named_values());
         } else {
-            vec![]
+            return vec![];
+        }
+
+        resolved.into_iter().collect()
+    }
+
+    pub(crate) fn read_attribute_by_name(
+        &self,
+        name: &str,
+        builtins: &mut VmGlobals,
+    ) -> Result<RuntimeValue, VmErrorReason> {
+        if let Ok(sym) = builtins.intern_symbol(name) {
+            match self.read_attribute(sym, builtins) {
+                Ok(val) => Ok(val),
+                Err(_) => Err(VmErrorReason::NoSuchIdentifier(name.to_owned())),
+            }
+        } else {
+            Err(VmErrorReason::NoSuchIdentifier(name.to_owned()))
+        }
+    }
+
+    pub(crate) fn write_attribute_by_name(
+        &self,
+        name: &str,
+        val: RuntimeValue,
+        builtins: &mut VmGlobals,
+    ) -> Result<(), VmErrorReason> {
+        if let Ok(sym) = builtins.intern_symbol(name) {
+            match self.write_attribute(sym, val, builtins) {
+                Ok(_) => Ok(()),
+                Err(_) => Err(VmErrorReason::NoSuchIdentifier(name.to_owned())),
+            }
+        } else {
+            Err(VmErrorReason::NoSuchIdentifier(name.to_owned()))
         }
     }
 
     pub fn read_attribute(
         &self,
-        attrib_name: &str,
+        attrib_sym: Symbol,
         builtins: &VmGlobals,
     ) -> Result<RuntimeValue, AttributeError> {
+        if let Some(m) = self.as_module()
+            && let Some(attrib_name) = builtins.resolve_symbol(attrib_sym)
+        {
+            return match m.load_named_value(attrib_name) {
+                Some(v) => Ok(v),
+                None => Err(AttributeError::NoSuchAttribute),
+            };
+        }
+
         if let Some(obj) = self.as_object() {
-            match obj.read(attrib_name) {
+            match obj.read(attrib_sym) {
                 Some(val) => Ok(val),
-                _ => match obj.get_struct().load_named_value(attrib_name) {
+                _ => match obj.get_struct().load_named_value(attrib_sym) {
                     Some(val) => {
                         val_or_bound_func!(val, self)
                     }
@@ -660,12 +712,12 @@ impl RuntimeValue {
                 },
             }
         } else if let Some(mixin) = self.as_mixin() {
-            match mixin.load_named_value(attrib_name) {
+            match mixin.load_named_value(attrib_sym) {
                 Some(val) => Ok(val),
                 _ => Err(AttributeError::NoSuchAttribute),
             }
         } else if let Some(enumm) = self.as_enum_value() {
-            match enumm.read(attrib_name) {
+            match enumm.read(attrib_sym) {
                 Some(val) => {
                     val_or_bound_func!(val, self)
                 }
@@ -673,12 +725,12 @@ impl RuntimeValue {
             }
         } else if let Some(bt_id) = self.get_builtin_type_id() {
             if let Some(attr_store) = self.get_attribute_store()
-                && let Some(val) = attr_store.read(attrib_name)
+                && let Some(val) = attr_store.read(attrib_sym)
             {
                 val_or_bound_func!(val, self)
             } else {
                 let bt = builtins.get_builtin_type_by_id(bt_id);
-                match bt.read_attribute(attrib_name) {
+                match bt.read_attribute(attrib_sym) {
                     Ok(val) => {
                         val_or_bound_func!(val, self)
                     }
@@ -686,16 +738,16 @@ impl RuntimeValue {
                 }
             }
         } else if let Some(f) = self.as_function() {
-            match f.read(attrib_name) {
+            match f.read(attrib_sym) {
                 Some(val) => Ok(val),
                 _ => Err(AttributeError::NoSuchAttribute),
             }
         } else if let Some(l) = self.as_list() {
-            match l.read(attrib_name) {
+            match l.read(attrib_sym) {
                 Some(val) => Ok(val),
                 _ => {
                     let bt = builtins.get_builtin_type_by_id(BuiltinTypeId::List);
-                    match bt.read_attribute(attrib_name) {
+                    match bt.read_attribute(attrib_sym) {
                         Ok(val) => {
                             val_or_bound_func!(val, self)
                         }
@@ -704,7 +756,7 @@ impl RuntimeValue {
                 }
             }
         } else if let Some(t) = self.as_type() {
-            let val = t.read_attribute(attrib_name)?;
+            let val = t.read_attribute(attrib_sym)?;
             if let Some(rf) = val.as_function() {
                 if !rf.attribute().is_type_method() {
                     Err(AttributeError::InvalidFunctionBinding)
@@ -713,11 +765,6 @@ impl RuntimeValue {
                 }
             } else {
                 Ok(val)
-            }
-        } else if let Some(m) = self.as_module() {
-            match m.load_named_value(attrib_name) {
-                Some(v) => Ok(v),
-                None => Err(AttributeError::NoSuchAttribute),
             }
         } else {
             Err(AttributeError::ValueHasNoAttributes)
@@ -730,7 +777,7 @@ impl RuntimeValue {
         cur_frame: &mut Frame,
         vm: &mut VirtualMachine,
     ) -> ExecutionResult<CallResult> {
-        match self.read_attribute("_op_impl_read_index", &vm.globals) {
+        match self.read_attribute_by_name("_op_impl_read_index", &mut vm.globals) {
             Ok(read_index) => {
                 for idx in indices.iter().rev() {
                     cur_frame.stack.push(idx.clone());
@@ -748,7 +795,7 @@ impl RuntimeValue {
         cur_frame: &mut Frame,
         vm: &mut VirtualMachine,
     ) -> ExecutionResult<CallResult> {
-        match self.read_attribute("_op_impl_write_index", &vm.globals) {
+        match self.read_attribute_by_name("_op_impl_write_index", &mut vm.globals) {
             Ok(write_index) => {
                 cur_frame.stack.push(val.clone());
                 for idx in indices.iter().rev() {

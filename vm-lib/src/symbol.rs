@@ -42,6 +42,10 @@ impl Interner {
         Ok(sym)
     }
 
+    pub fn lookup(&self, s: &str) -> Option<Symbol> {
+        self.map.get(s).copied()
+    }
+
     pub fn resolve(&self, sym: Symbol) -> Option<&str> {
         self.strings.get(sym.0 as usize).map(|s| s.as_str())
     }
