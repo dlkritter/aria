@@ -11,6 +11,7 @@ use rustc_data_structures::fx::FxHashSet;
 
 use crate::{
     arity::Arity,
+    builtins::VmGlobals,
     frame::Frame,
     runtime_module::RuntimeModule,
     symbol::Symbol,
@@ -231,18 +232,18 @@ impl FunctionImpl {
         Self::BytecodeFunction(bcf)
     }
 
-    fn read(&self, name: Symbol) -> Option<RuntimeValue> {
+    fn read(&self, builtins: &VmGlobals, name: Symbol) -> Option<RuntimeValue> {
         match self {
             FunctionImpl::BytecodeFunction(b) => &b.boxx,
             FunctionImpl::BuiltinFunction(b) => &b.boxx,
         }
-        .read(name)
+        .read(builtins, name)
     }
 
-    fn list_attributes(&self) -> FxHashSet<Symbol> {
+    fn list_attributes(&self, builtins: &VmGlobals) -> FxHashSet<Symbol> {
         match self {
-            FunctionImpl::BytecodeFunction(b) => b.boxx.list_attributes(),
-            FunctionImpl::BuiltinFunction(b) => b.boxx.list_attributes(),
+            FunctionImpl::BytecodeFunction(b) => b.boxx.list_attributes(builtins),
+            FunctionImpl::BuiltinFunction(b) => b.boxx.list_attributes(builtins),
         }
     }
 }
@@ -282,6 +283,14 @@ impl Function {
         Self {
             imp: Rc::new(FunctionImpl::from_code_object(co, a, m)),
         }
+    }
+
+    pub fn read(&self, builtins: &VmGlobals, name: Symbol) -> Option<RuntimeValue> {
+        self.imp.read(builtins, name)
+    }
+
+    pub fn list_attributes(&self, builtins: &VmGlobals) -> FxHashSet<Symbol> {
+        self.imp.list_attributes(builtins)
     }
 
     // DO NOT CALL unless you are Function or BoundFunction
@@ -379,14 +388,6 @@ impl Function {
             },
             RunloopExit::Exception(e) => Ok(CallResult::Exception(e)),
         }
-    }
-
-    pub fn read(&self, name: Symbol) -> Option<RuntimeValue> {
-        self.imp.read(name)
-    }
-
-    pub fn list_attributes(&self) -> FxHashSet<Symbol> {
-        self.imp.list_attributes()
     }
 }
 

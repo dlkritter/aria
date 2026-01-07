@@ -38,12 +38,12 @@ impl Arity {
             let arity_struct = arity_struct
                 .as_struct()
                 .ok_or(VmErrorReason::UnexpectedType)?;
+            let upper_bound_sym = vm
+                .globals
+                .intern_symbol("UpperBound")
+                .expect("too many symbols interned");
             let upper_bound_enum = arity_struct
-                .load_named_value(
-                    vm.globals
-                        .intern_symbol("UpperBound")
-                        .expect("too many symbols interned"),
-                )
+                .load_named_value(&vm.globals, upper_bound_sym)
                 .ok_or_else(|| {
                     VmErrorReason::NoSuchIdentifier("aria.core.arity.Arity.UpperBound".to_owned())
                 })?;
@@ -121,23 +121,25 @@ impl BuiltinFunctionImpl for Arity {
         let lower_bound_value =
             RuntimeValue::Integer(((f_arity.required - argc_offset) as i64).into());
 
+        let min_sym = vm
+            .globals
+            .intern_symbol("min")
+            .expect("too many symbols interned");
+        let max_sym = vm
+            .globals
+            .intern_symbol("max")
+            .expect("too many symbols interned");
+        let has_receiver_sym = vm
+            .globals
+            .intern_symbol("has_receiver")
+            .expect("too many symbols interned");
+
         let arity_object = Object::new(&arity_cache.arity_struct)
+            .with_value(&mut vm.globals, min_sym, lower_bound_value)
+            .with_value(&mut vm.globals, max_sym, upper_bound_value)
             .with_value(
-                vm.globals
-                    .intern_symbol("min")
-                    .expect("too many symbols interned"),
-                lower_bound_value,
-            )
-            .with_value(
-                vm.globals
-                    .intern_symbol("max")
-                    .expect("too many symbols interned"),
-                upper_bound_value,
-            )
-            .with_value(
-                vm.globals
-                    .intern_symbol("has_receiver")
-                    .expect("too many symbols interned"),
+                &mut vm.globals,
+                has_receiver_sym,
                 RuntimeValue::Boolean(has_receiver.into()),
             );
 

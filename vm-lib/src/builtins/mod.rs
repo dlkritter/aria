@@ -12,6 +12,7 @@ use crate::{
         kind::RuntimeValueType,
         object::ObjectBox,
     },
+    shape::Shapes,
     symbol::Interner,
 };
 
@@ -72,6 +73,7 @@ pub struct VmGlobals {
     values: Rc<ObjectBox>,
     builtin_types: AriaBuiltinTypes,
     interner: Interner,
+    pub(crate) shapes: Shapes,
 }
 
 impl VmGlobals {
@@ -122,6 +124,7 @@ impl Default for VmGlobals {
             values: Default::default(),
             builtin_types: Default::default(),
             interner: Default::default(),
+            shapes: Default::default(),
         };
 
         this.register_builtin_type(BuiltinTypeId::Any, RuntimeValueType::Any); // Most anything needs Any
@@ -181,16 +184,17 @@ impl VmGlobals {
 
     pub fn load_named_value(&self, name: &str) -> Option<RuntimeValue> {
         let sym = self.lookup_symbol(name)?;
-        self.values.read(sym)
+        self.values.read(self, sym)
     }
 
     pub fn insert(&mut self, name: &str, val: RuntimeValue) {
         let sym = self.intern_symbol(name).expect("too many symbols interned");
-        if self.values.contains(sym) {
+        let values = Rc::clone(&self.values);
+        if values.contains(self, sym) {
             panic!("duplicate builtin {name}");
         }
 
-        self.values.write(sym, val);
+        values.write(self, sym, val);
     }
 
     #[deprecated(note = "use get_builtin_type_by_id instead")]

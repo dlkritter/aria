@@ -647,7 +647,7 @@ impl RuntimeValue {
         &self,
         attrib_sym: Symbol,
         val: RuntimeValue,
-        builtins: &VmGlobals,
+        builtins: &mut VmGlobals,
     ) -> Result<(), AttributeError> {
         if let Some(rm) = self.as_module()
             && let Some(attr_name) = builtins.resolve_symbol(attrib_sym)
@@ -655,7 +655,7 @@ impl RuntimeValue {
             rm.store_named_value(attr_name, val);
             Ok(())
         } else if let Some(ob) = self.get_attribute_store() {
-            ob.write(attrib_sym, val);
+            ob.write(builtins, attrib_sym, val);
             Ok(())
         } else {
             Err(AttributeError::ValueHasNoAttributes)
@@ -673,40 +673,40 @@ impl RuntimeValue {
         };
 
         if let Some(obj) = self.as_object() {
-            let mut attrs = obj.list_attributes();
-            attrs.extend(obj.get_struct().list_attributes());
+            let mut attrs = obj.list_attributes(builtins);
+            attrs.extend(obj.get_struct().list_attributes(builtins));
             push_resolved(attrs);
         } else if let Some(mixin) = self.as_mixin() {
-            push_resolved(mixin.list_attributes());
+            push_resolved(mixin.list_attributes(builtins));
         } else if let Some(enumm) = self.as_enum_value() {
-            push_resolved(enumm.get_container_enum().list_attributes());
+            push_resolved(enumm.get_container_enum().list_attributes(builtins));
         } else if let Some(i) = self.as_integer() {
-            let mut attrs = i.list_attributes();
+            let mut attrs = i.list_attributes(builtins);
             let bt = builtins.get_builtin_type_by_id(BuiltinTypeId::Int);
-            attrs.extend(bt.list_attributes());
+            attrs.extend(bt.list_attributes(builtins));
             push_resolved(attrs);
         } else if let Some(i) = self.as_float() {
-            let mut attrs = i.list_attributes();
+            let mut attrs = i.list_attributes(builtins);
             let bt = builtins.get_builtin_type_by_id(BuiltinTypeId::Float);
-            attrs.extend(bt.list_attributes());
+            attrs.extend(bt.list_attributes(builtins));
             push_resolved(attrs);
         } else if let Some(s) = self.as_string() {
-            let mut attrs = s.list_attributes();
+            let mut attrs = s.list_attributes(builtins);
             let bt = builtins.get_builtin_type_by_id(BuiltinTypeId::String);
-            attrs.extend(bt.list_attributes());
+            attrs.extend(bt.list_attributes(builtins));
             push_resolved(attrs);
         } else if let Some(b) = self.as_boolean() {
-            let mut attrs = b.list_attributes();
+            let mut attrs = b.list_attributes(builtins);
             let bt = builtins.get_builtin_type_by_id(BuiltinTypeId::Bool);
-            attrs.extend(bt.list_attributes());
+            attrs.extend(bt.list_attributes(builtins));
             push_resolved(attrs);
         } else if let Some(l) = self.as_list() {
-            let mut attrs = l.list_attributes();
+            let mut attrs = l.list_attributes(builtins);
             let bt = builtins.get_builtin_type_by_id(BuiltinTypeId::List);
-            attrs.extend(bt.list_attributes());
+            attrs.extend(bt.list_attributes(builtins));
             push_resolved(attrs);
         } else if let Some(f) = self.as_function() {
-            push_resolved(f.list_attributes());
+            push_resolved(f.list_attributes(builtins));
         } else if let Some(m) = self.as_module() {
             resolved.extend(m.list_named_values());
         } else {
@@ -731,9 +731,9 @@ impl RuntimeValue {
         }
 
         if let Some(obj) = self.as_object() {
-            match obj.read(attrib_sym) {
+            match obj.read(builtins, attrib_sym) {
                 Some(val) => Ok(val),
-                _ => match obj.get_struct().load_named_value(attrib_sym) {
+                _ => match obj.get_struct().load_named_value(builtins, attrib_sym) {
                     Some(val) => {
                         val_or_bound_func!(val, self)
                     }
@@ -741,12 +741,12 @@ impl RuntimeValue {
                 },
             }
         } else if let Some(mixin) = self.as_mixin() {
-            match mixin.load_named_value(attrib_sym) {
+            match mixin.load_named_value(builtins, attrib_sym) {
                 Some(val) => Ok(val),
                 _ => Err(AttributeError::NoSuchAttribute),
             }
         } else if let Some(enumm) = self.as_enum_value() {
-            match enumm.read(attrib_sym) {
+            match enumm.read(builtins, attrib_sym) {
                 Some(val) => {
                     val_or_bound_func!(val, self)
                 }
@@ -754,12 +754,12 @@ impl RuntimeValue {
             }
         } else if let Some(bt_id) = self.get_builtin_type_id() {
             if let Some(attr_store) = self.get_attribute_store()
-                && let Some(val) = attr_store.read(attrib_sym)
+                && let Some(val) = attr_store.read(builtins, attrib_sym)
             {
                 val_or_bound_func!(val, self)
             } else {
                 let bt = builtins.get_builtin_type_by_id(bt_id);
-                match bt.read_attribute(attrib_sym) {
+                match bt.read_attribute(builtins, attrib_sym) {
                     Ok(val) => {
                         val_or_bound_func!(val, self)
                     }
@@ -767,16 +767,16 @@ impl RuntimeValue {
                 }
             }
         } else if let Some(f) = self.as_function() {
-            match f.read(attrib_sym) {
+            match f.read(builtins, attrib_sym) {
                 Some(val) => Ok(val),
                 _ => Err(AttributeError::NoSuchAttribute),
             }
         } else if let Some(l) = self.as_list() {
-            match l.read(attrib_sym) {
+            match l.read(builtins, attrib_sym) {
                 Some(val) => Ok(val),
                 _ => {
                     let bt = builtins.get_builtin_type_by_id(BuiltinTypeId::List);
-                    match bt.read_attribute(attrib_sym) {
+                    match bt.read_attribute(builtins, attrib_sym) {
                         Ok(val) => {
                             val_or_bound_func!(val, self)
                         }
@@ -785,7 +785,7 @@ impl RuntimeValue {
                 }
             }
         } else if let Some(t) = self.as_type() {
-            let val = t.read_attribute(attrib_sym)?;
+            let val = t.read_attribute(builtins, attrib_sym)?;
             if let Some(rf) = val.as_function() {
                 if !rf.attribute().is_type_method() {
                     Err(AttributeError::InvalidFunctionBinding)

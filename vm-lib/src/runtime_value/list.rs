@@ -4,6 +4,7 @@ use std::{cell::RefCell, rc::Rc};
 use rustc_data_structures::fx::FxHashSet;
 
 use crate::{
+    builtins::VmGlobals,
     error::vm_error::{VmError, VmErrorReason},
     frame::Frame,
     runtime_value::object::ObjectBox,
@@ -61,12 +62,12 @@ impl ListImpl {
         }
     }
 
-    fn read(&self, name: Symbol) -> Option<RuntimeValue> {
-        self.boxx.read(name)
+    fn read(&self, builtins: &VmGlobals, name: Symbol) -> Option<RuntimeValue> {
+        self.boxx.read(builtins, name)
     }
 
-    fn list_attributes(&self) -> FxHashSet<Symbol> {
-        self.boxx.list_attributes()
+    fn list_attributes(&self, builtins: &VmGlobals) -> FxHashSet<Symbol> {
+        self.boxx.list_attributes(builtins)
     }
 }
 
@@ -157,12 +158,12 @@ impl List {
         }
     }
 
-    pub fn read(&self, name: Symbol) -> Option<RuntimeValue> {
-        self.imp.read(name)
+    pub fn read(&self, builtins: &VmGlobals, name: Symbol) -> Option<RuntimeValue> {
+        self.imp.read(builtins, name)
     }
 
-    pub fn list_attributes(&self) -> FxHashSet<Symbol> {
-        self.imp.list_attributes()
+    pub fn list_attributes(&self, builtins: &VmGlobals) -> FxHashSet<Symbol> {
+        self.imp.list_attributes(builtins)
     }
 }
 

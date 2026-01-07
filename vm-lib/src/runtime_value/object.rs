@@ -1,41 +1,84 @@
 // SPDX-License-Identifier: Apache-2.0
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
 
-use rustc_data_structures::fx::{FxHashMap, FxHashSet};
+use rustc_data_structures::fx::FxHashSet;
 
-use crate::error::vm_error::VmErrorReason;
 use crate::symbol::Symbol;
+use crate::{error::vm_error::VmErrorReason, shape::ShapeId};
 
 use super::{RuntimeValue, structure::Struct};
 
-#[derive(Default)]
 pub struct ObjectBox {
-    values: RefCell<FxHashMap<Symbol, RuntimeValue>>,
+    shape: Cell<ShapeId>,
+    slots: RefCell<Vec<RuntimeValue>>,
+}
+
+impl Default for ObjectBox {
+    fn default() -> Self {
+        Self {
+            shape: Cell::new(crate::shape::Shapes::EMPTY_SHAPE_INDEX),
+            slots: RefCell::new(Vec::new()),
+        }
+    }
 }
 
 impl ObjectBox {
-    pub fn write(&self, name: Symbol, val: RuntimeValue) {
-        self.values.borrow_mut().insert(name, val);
+    pub fn write(
+        &self,
+        builtins: &mut crate::builtins::VmGlobals,
+        name: Symbol,
+        val: RuntimeValue,
+    ) {
+        let (shape_id, slot_id) = builtins.shapes.transition(self.shape.get(), name);
+        self.shape.set(shape_id);
+        let slot_id = slot_id.0 as usize;
+        let slot_count = self.slots.borrow().len();
+        if slot_id == slot_count {
+            self.slots.borrow_mut().push(val);
+        } else if slot_id < slot_count {
+            self.slots.borrow_mut()[slot_id] = val;
+        } else {
+            panic!("slots should grow sequentially");
+        }
     }
 
-    pub fn read(&self, name: Symbol) -> Option<RuntimeValue> {
-        self.values.borrow().get(&name).cloned()
+    pub fn read(
+        &self,
+        builtins: &crate::builtins::VmGlobals,
+        name: Symbol,
+    ) -> Option<RuntimeValue> {
+        let slot_id = builtins.shapes.resolve_slot(self.shape.get(), name)?;
+        self.slots.borrow().get(slot_id.0 as usize).cloned()
     }
 
-    fn delete(&self, name: Symbol) {
-        self.values.borrow_mut().remove(&name);
+    pub(super) fn list_attributes(
+        &self,
+        builtins: &crate::builtins::VmGlobals,
+    ) -> FxHashSet<Symbol> {
+        let slot_count = self.slots.borrow().len();
+        let mut ret = FxHashSet::<Symbol>::default();
+        for i in 0..slot_count {
+            if let Some(symbol) = builtins
+                .shapes
+                .resolve_symbol(self.shape.get(), crate::shape::SlotId(i as u32))
+            {
+                ret.insert(symbol);
+            }
+        }
+
+        ret
     }
 
-    pub(super) fn list_attributes(&self) -> FxHashSet<Symbol> {
-        self.values.borrow().keys().cloned().collect()
-    }
-
-    pub(crate) fn contains(&self, name: Symbol) -> bool {
-        self.values.borrow().contains_key(&name)
-    }
-
-    pub(crate) fn keys(&self) -> FxHashSet<Symbol> {
-        self.values.borrow().keys().cloned().collect()
+    pub(crate) fn contains(&self, builtins: &crate::builtins::VmGlobals, name: Symbol) -> bool {
+        let slot_count = self.slots.borrow().len();
+        if let Some(slot_id) = builtins.shapes.resolve_slot(self.shape.get(), name) {
+            (slot_id.0 as usize) < slot_count
+        } else {
+            false
+        }
     }
 }
 
@@ -57,20 +100,16 @@ impl ObjectImpl {
         }
     }
 
-    fn write(&self, name: Symbol, val: RuntimeValue) {
-        self.boxx.write(name, val)
+    fn write(&self, builtins: &mut crate::builtins::VmGlobals, name: Symbol, val: RuntimeValue) {
+        self.boxx.write(builtins, name, val)
     }
 
-    fn read(&self, name: Symbol) -> Option<RuntimeValue> {
-        self.boxx.read(name)
+    fn read(&self, builtins: &crate::builtins::VmGlobals, name: Symbol) -> Option<RuntimeValue> {
+        self.boxx.read(builtins, name)
     }
 
-    fn delete(&self, name: Symbol) {
-        self.boxx.delete(name);
-    }
-
-    fn list_attributes(&self) -> FxHashSet<Symbol> {
-        self.boxx.list_attributes()
+    fn list_attributes(&self, builtins: &crate::builtins::VmGlobals) -> FxHashSet<Symbol> {
+        self.boxx.list_attributes(builtins)
     }
 }
 
@@ -81,24 +120,29 @@ impl Object {
         }
     }
 
-    pub fn read(&self, name: Symbol) -> Option<RuntimeValue> {
-        self.imp.read(name)
+    pub fn read(
+        &self,
+        builtins: &crate::builtins::VmGlobals,
+        name: Symbol,
+    ) -> Option<RuntimeValue> {
+        self.imp.read(builtins, name)
     }
 
-    pub fn list_attributes(&self) -> FxHashSet<Symbol> {
-        self.imp.list_attributes()
-    }
-
-    pub fn delete(&self, name: Symbol) {
-        self.imp.delete(name);
+    pub fn list_attributes(&self, builtins: &crate::builtins::VmGlobals) -> FxHashSet<Symbol> {
+        self.imp.list_attributes(builtins)
     }
 
     pub fn get_struct(&self) -> &Struct {
         &self.imp.kind
     }
 
-    pub fn with_value(self, name: Symbol, val: RuntimeValue) -> Self {
-        self.imp.write(name, val);
+    pub fn with_value(
+        self,
+        builtins: &mut crate::builtins::VmGlobals,
+        name: Symbol,
+        val: RuntimeValue,
+    ) -> Self {
+        self.imp.write(builtins, name, val);
         self
     }
 }
@@ -113,13 +157,14 @@ impl Eq for Object {}
 impl Object {
     pub fn extract_field<FnType, OkType>(
         &self,
+        builtins: &crate::builtins::VmGlobals,
         name: Symbol,
         f: FnType,
     ) -> Result<OkType, VmErrorReason>
     where
         FnType: FnOnce(RuntimeValue) -> Option<OkType>,
     {
-        let val = match self.read(name) {
+        let val = match self.read(builtins, name) {
             Some(v) => v,
             None => {
                 return Err(VmErrorReason::NoSuchIdentifier(name.to_string()));

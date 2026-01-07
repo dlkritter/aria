@@ -72,16 +72,16 @@ impl EnumImpl {
         None
     }
 
-    fn load_named_value(&self, name: Symbol) -> Option<RuntimeValue> {
-        if let Some(nv) = self.entries.read(name) {
+    fn load_named_value(&self, builtins: &VmGlobals, name: Symbol) -> Option<RuntimeValue> {
+        if let Some(nv) = self.entries.read(builtins, name) {
             Some(nv.clone())
         } else {
-            self.mixins.borrow().load_named_value(name)
+            self.mixins.borrow().load_named_value(builtins, name)
         }
     }
 
-    fn store_named_value(&self, name: Symbol, val: RuntimeValue) {
-        self.entries.write(name, val);
+    fn store_named_value(&self, builtins: &mut VmGlobals, name: Symbol, val: RuntimeValue) {
+        self.entries.write(builtins, name, val);
     }
 
     fn include_mixin(&self, mixin: &Mixin) {
@@ -92,9 +92,9 @@ impl EnumImpl {
         self.mixins.borrow().contains(mixin)
     }
 
-    fn list_attributes(&self) -> FxHashSet<Symbol> {
-        let mut attrs = self.entries.keys();
-        attrs.extend(self.mixins.borrow().list_attributes());
+    fn list_attributes(&self, builtins: &VmGlobals) -> FxHashSet<Symbol> {
+        let mut attrs = self.entries.list_attributes(builtins);
+        attrs.extend(self.mixins.borrow().list_attributes(builtins));
         attrs
     }
 }
@@ -133,8 +133,8 @@ impl Enum {
         self.imp.get_case_by_idx(idx)
     }
 
-    pub fn load_named_value(&self, name: Symbol) -> Option<RuntimeValue> {
-        self.imp.load_named_value(name)
+    pub fn load_named_value(&self, builtins: &VmGlobals, name: Symbol) -> Option<RuntimeValue> {
+        self.imp.load_named_value(builtins, name)
     }
 
     pub fn include_mixin(&self, mixin: &Mixin) {
@@ -164,8 +164,8 @@ impl Enum {
         }
     }
 
-    pub fn list_attributes(&self) -> FxHashSet<Symbol> {
-        self.imp.list_attributes()
+    pub fn list_attributes(&self, builtins: &VmGlobals) -> FxHashSet<Symbol> {
+        self.imp.list_attributes(builtins)
     }
 
     pub fn insert_builtin<T>(&self, builtins: &mut VmGlobals)
@@ -176,8 +176,11 @@ impl Enum {
         let name = builtins
             .intern_symbol(t.name())
             .expect("too many symbols interned");
-        self.imp
-            .store_named_value(name, RuntimeValue::Function(Function::builtin_from(t)));
+        self.imp.store_named_value(
+            builtins,
+            name,
+            RuntimeValue::Function(Function::builtin_from(t)),
+        );
     }
 }
 

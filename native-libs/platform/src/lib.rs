@@ -30,7 +30,7 @@ impl BuiltinFunctionImpl for GetPlatformInfo {
             .intern_symbol("LinuxPlatform")
             .expect("too many symbols interned");
         let linux_info = platform_enum
-            .load_named_value(linux_platform_sym)
+            .load_named_value(&vm.globals, linux_platform_sym)
             .ok_or(VmErrorReason::UnexpectedVmState)?;
         let linux_info = linux_info
             .as_struct()
@@ -43,7 +43,7 @@ impl BuiltinFunctionImpl for GetPlatformInfo {
         let _ = linux_info.write_attribute(
             kernel_version_sym,
             RuntimeValue::String(kernel_version.into()),
-            &vm.globals,
+            &mut vm.globals,
         );
 
         let linux_case = platform_enum
@@ -86,7 +86,7 @@ impl BuiltinFunctionImpl for GetPlatformInfo {
             .intern_symbol("macOSPlatform")
             .expect("too many symbols interned");
         let mac_info = platform_enum
-            .load_named_value(mac_platform_sym)
+            .load_named_value(&vm.globals, mac_platform_sym)
             .ok_or(VmErrorReason::UnexpectedVmState)?;
         let mac_info = mac_info
             .as_struct()
@@ -99,7 +99,7 @@ impl BuiltinFunctionImpl for GetPlatformInfo {
         let _ = mac_info.write_attribute(
             os_build_sym,
             RuntimeValue::String(mac_version.into()),
-            &vm.globals,
+            &mut vm.globals,
         );
 
         let mac_case = platform_enum

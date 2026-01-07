@@ -4,7 +4,7 @@ use std::rc::Rc;
 use haxby_opcodes::BuiltinTypeId;
 use rustc_data_structures::fx::FxHashSet;
 
-use crate::symbol::Symbol;
+use crate::{builtins::VmGlobals, symbol::Symbol};
 
 use super::object::ObjectBox;
 
@@ -21,8 +21,8 @@ impl<T> BuiltinValueImpl<T>
 where
     T: Clone,
 {
-    fn list_attributes(&self) -> FxHashSet<Symbol> {
-        self.boxx.list_attributes()
+    fn list_attributes(&self, builtins: &VmGlobals) -> FxHashSet<Symbol> {
+        self.boxx.list_attributes(builtins)
     }
 }
 
@@ -95,7 +95,7 @@ where
         self.imp.val.clone()
     }
 
-    pub fn list_attributes(&self) -> FxHashSet<Symbol> {
-        self.imp.list_attributes()
+    pub fn list_attributes(&self, builtins: &VmGlobals) -> FxHashSet<Symbol> {
+        self.imp.list_attributes(builtins)
     }
 }

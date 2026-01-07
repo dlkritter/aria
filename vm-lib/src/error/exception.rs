@@ -108,14 +108,11 @@ impl VmException {
                 payload: Some(RuntimeValue::Integer((*idx as i64).into())),
             },
             VmErrorReason::MismatchedArgumentCount(expected, actual) => {
-                let argc_mismatch = some_or_err!(
-                    rt_err.load_named_value(
-                        builtins
-                            .intern_symbol("ArgcMismatch")
-                            .expect("too many symbols interned")
-                    ),
-                    err
-                );
+                let argc_mismatch_sym = builtins
+                    .intern_symbol("ArgcMismatch")
+                    .expect("too many symbols interned");
+                let argc_mismatch =
+                    some_or_err!(rt_err.load_named_value(builtins, argc_mismatch_sym), err);
                 let argc_mismatch = some_or_err!(argc_mismatch.as_struct(), err);
                 let argc_mismatch_obj = RuntimeValue::Object(Object::new(argc_mismatch));
                 let _ = argc_mismatch_obj.write_attribute(

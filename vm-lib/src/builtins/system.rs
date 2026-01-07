@@ -42,14 +42,14 @@ impl BuiltinFunctionImpl for System {
                     RuntimeValue::String(
                         String::from_utf8_lossy(&output.stdout).to_string().into(),
                     ),
-                    &vm.globals,
+                    &mut vm.globals,
                 );
                 let _ = result.write_attribute(
                     INTERNED_ATTR_STDERR,
                     RuntimeValue::String(
                         String::from_utf8_lossy(&output.stderr).to_string().into(),
                     ),
-                    &vm.globals,
+                    &mut vm.globals,
                 );
                 cur_frame.stack.push(result);
                 Ok(RunloopExit::Ok(()))

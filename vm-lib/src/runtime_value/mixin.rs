@@ -3,7 +3,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use rustc_data_structures::fx::FxHashSet;
 
-use crate::{runtime_value::object::ObjectBox, symbol::Symbol};
+use crate::{builtins::VmGlobals, runtime_value::object::ObjectBox, symbol::Symbol};
 
 use super::RuntimeValue;
 
@@ -22,16 +22,16 @@ impl MixinImpl {
         }
     }
 
-    fn load_named_value(&self, name: Symbol) -> Option<RuntimeValue> {
-        if let Some(val) = self.entries.read(name) {
+    fn load_named_value(&self, builtins: &VmGlobals, name: Symbol) -> Option<RuntimeValue> {
+        if let Some(val) = self.entries.read(builtins, name) {
             Some(val.clone())
         } else {
-            self.mixins.borrow().load_named_value(name)
+            self.mixins.borrow().load_named_value(builtins, name)
         }
     }
 
-    fn named_values(&self) -> Vec<Symbol> {
-        self.entries.keys().into_iter().collect()
+    fn named_values(&self, builtins: &VmGlobals) -> Vec<Symbol> {
+        self.entries.list_attributes(builtins).into_iter().collect()
     }
 
     fn include_mixin(&self, mixin: &Mixin) {
@@ -42,9 +42,9 @@ impl MixinImpl {
         self.mixins.borrow().contains(mixin)
     }
 
-    fn list_attributes(&self) -> FxHashSet<Symbol> {
-        let mut attrs = self.entries.keys();
-        attrs.extend(self.mixins.borrow().list_attributes());
+    fn list_attributes(&self, builtins: &VmGlobals) -> FxHashSet<Symbol> {
+        let mut attrs = self.entries.list_attributes(builtins);
+        attrs.extend(self.mixins.borrow().list_attributes(builtins));
         attrs
     }
 }
@@ -65,12 +65,12 @@ impl Mixin {
         &self.imp.name
     }
 
-    pub fn load_named_value(&self, name: Symbol) -> Option<RuntimeValue> {
-        self.imp.load_named_value(name)
+    pub fn load_named_value(&self, builtins: &VmGlobals, name: Symbol) -> Option<RuntimeValue> {
+        self.imp.load_named_value(builtins, name)
     }
 
-    pub fn named_values(&self) -> Vec<Symbol> {
-        self.imp.named_values()
+    pub fn named_values(&self, builtins: &VmGlobals) -> Vec<Symbol> {
+        self.imp.named_values(builtins)
     }
 
     pub fn include_mixin(&self, mixin: &Mixin) {
@@ -81,8 +81,8 @@ impl Mixin {
         self == mixin || self.imp.isa_mixin(mixin)
     }
 
-    pub fn list_attributes(&self) -> FxHashSet<Symbol> {
-        self.imp.list_attributes()
+    pub fn list_attributes(&self, builtins: &VmGlobals) -> FxHashSet<Symbol> {
+        self.imp.list_attributes(builtins)
     }
 }
 

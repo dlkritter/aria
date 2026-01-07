@@ -22,7 +22,7 @@ fn create_regex_error(
         .intern_symbol("Error")
         .expect("too many symbols interned");
     let regex_error = regex_struct
-        .load_named_value(error_sym)
+        .load_named_value(builtins, error_sym)
         .ok_or(VmErrorReason::UnexpectedVmState)?;
 
     let regex_error = regex_error
@@ -70,12 +70,12 @@ impl BuiltinFunctionImpl for New {
         let _ = aria_regex_obj.write_attribute(
             pattern_impl_sym,
             RuntimeValue::Opaque(rust_regex_obj),
-            &vm.globals,
+            &mut vm.globals,
         );
         let _ = aria_regex_obj.write_attribute(
             pattern_sym,
             RuntimeValue::String(the_pattern),
-            &vm.globals,
+            &mut vm.globals,
         );
 
         frame.stack.push(aria_regex_obj);
@@ -106,7 +106,7 @@ impl BuiltinFunctionImpl for AnyMatch {
             .globals
             .lookup_symbol("__pattern")
             .ok_or(VmErrorReason::UnexpectedVmState)?;
-        let rust_regex_obj = match aria_regex.read(pattern_sym) {
+        let rust_regex_obj = match aria_regex.read(&vm.globals, pattern_sym) {
             Some(s) => s,
             None => return Err(VmErrorReason::UnexpectedVmState.into()),
         };
@@ -147,13 +147,16 @@ impl BuiltinFunctionImpl for Matches {
             .globals
             .intern_symbol("Match")
             .expect("too many symbols interned");
-        let match_struct_type = aria_struct.extract_field(match_sym, |e| e.as_struct().cloned())?;
+        let match_struct_type =
+            aria_struct.extract_field(&vm.globals, match_sym, |e: RuntimeValue| {
+                e.as_struct().cloned()
+            })?;
 
         let pattern_sym = vm
             .globals
             .lookup_symbol("__pattern")
             .ok_or(VmErrorReason::UnexpectedVmState)?;
-        let rust_regex_obj = match aria_regex.read(pattern_sym) {
+        let rust_regex_obj = match aria_regex.read(&vm.globals, pattern_sym) {
             Some(s) => s,
             None => return Err(VmErrorReason::UnexpectedVmState.into()),
         };
@@ -185,12 +188,18 @@ impl BuiltinFunctionImpl for Matches {
             let _ = match_obj.write_attribute(
                 start_sym,
                 RuntimeValue::Integer(m.0.into()),
-                &vm.globals,
+                &mut vm.globals,
             );
-            let _ =
-                match_obj.write_attribute(len_sym, RuntimeValue::Integer(m.1.into()), &vm.globals);
-            let _ =
-                match_obj.write_attribute(value_sym, RuntimeValue::String(m.2.into()), &vm.globals);
+            let _ = match_obj.write_attribute(
+                len_sym,
+                RuntimeValue::Integer(m.1.into()),
+                &mut vm.globals,
+            );
+            let _ = match_obj.write_attribute(
+                value_sym,
+                RuntimeValue::String(m.2.into()),
+                &mut vm.globals,
+            );
             matches_list.append(match_obj);
         }
 
@@ -227,7 +236,7 @@ impl BuiltinFunctionImpl for Replace {
             .globals
             .lookup_symbol("__pattern")
             .ok_or(VmErrorReason::UnexpectedVmState)?;
-        let rust_regex_obj = match aria_regex.read(pattern_sym) {
+        let rust_regex_obj = match aria_regex.read(&vm.globals, pattern_sym) {
             Some(s) => s,
             None => return Err(VmErrorReason::UnexpectedVmState.into()),
         };

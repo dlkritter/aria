@@ -26,6 +26,7 @@ fn new_from_path<P: AsRef<std::path::Path>>(
     the_struct: &haxby_vm::runtime_value::structure::Struct,
     the_path: P,
     path_sym: Symbol,
+    builtins: &mut VmGlobals,
 ) -> RuntimeValue {
     let pb = PathBuf::from(the_path.as_ref());
     let pb = MutablePath {
@@ -33,9 +34,11 @@ fn new_from_path<P: AsRef<std::path::Path>>(
     };
 
     let path_obj = OpaqueValue::new(pb);
-    RuntimeValue::Object(
-        Object::new(the_struct).with_value(path_sym, RuntimeValue::Opaque(path_obj)),
-    )
+    RuntimeValue::Object(Object::new(the_struct).with_value(
+        builtins,
+        path_sym,
+        RuntimeValue::Opaque(path_obj),
+    ))
 }
 
 fn create_path_result_err(
@@ -47,14 +50,20 @@ fn create_path_result_err(
         .globals
         .intern_symbol("Error")
         .expect("too many symbols interned");
-    let path_error = path_struct.extract_field(error_sym, |field| field.as_struct().cloned())?;
+    let path_error = path_struct.extract_field(&vm.globals, error_sym, |field: RuntimeValue| {
+        field.as_struct().cloned()
+    })?;
 
     let path_error = RuntimeValue::Object(Object::new(&path_error));
     let msg_sym = vm
         .globals
         .intern_symbol("msg")
         .expect("too many symbols interned");
-    let _ = path_error.write_attribute(msg_sym, RuntimeValue::String(message.into()), &vm.globals);
+    let _ = path_error.write_attribute(
+        msg_sym,
+        RuntimeValue::String(message.into()),
+        &mut vm.globals,
+    );
 
     vm.globals.create_result_err(path_error)
 }
@@ -67,7 +76,7 @@ fn mut_path_from_aria(
         .lookup_symbol("__path")
         .ok_or(VmErrorReason::UnexpectedVmState)?;
     let rust_obj = aria_object
-        .read(path_sym)
+        .read(builtins, path_sym)
         .ok_or(VmErrorReason::UnexpectedVmState)?;
     rust_obj
         .as_opaque_concrete::<MutablePath>()
@@ -93,9 +102,12 @@ impl BuiltinFunctionImpl for New {
             VmGlobals::extract_arg(frame, |x: RuntimeValue| x.as_string().cloned())?.raw_value();
 
         let path_sym = path_symbol(vm);
-        frame
-            .stack
-            .push(new_from_path(&the_struct, the_path, path_sym));
+        frame.stack.push(new_from_path(
+            &the_struct,
+            the_path,
+            path_sym,
+            &mut vm.globals,
+        ));
         Ok(RunloopExit::Ok(()))
     }
 
@@ -132,19 +144,20 @@ impl BuiltinFunctionImpl for Glob {
                     .intern_symbol("Iterator")
                     .expect("too many symbols interned");
                 let iterator_rv = the_struct
-                    .load_named_value(iterator_sym)
+                    .load_named_value(&vm.globals, iterator_sym)
                     .ok_or(VmErrorReason::UnexpectedVmState)?;
                 let iterator_struct = iterator_rv
                     .as_struct()
                     .ok_or(VmErrorReason::UnexpectedVmState)?;
 
-                let flatten = path
+                let values: Vec<_> = path
                     .flatten()
-                    .map(move |e| new_from_path(&the_struct, e, path_sym));
+                    .map(|e| new_from_path(&the_struct, e, path_sym, &mut vm.globals))
+                    .collect();
 
                 let iterator = create_iterator_struct(
                     iterator_struct,
-                    NativeIteratorImpl::new(flatten),
+                    NativeIteratorImpl::new(values.into_iter()),
                     &mut vm.globals,
                 );
 
@@ -183,7 +196,9 @@ impl BuiltinFunctionImpl for Cwd {
         let cwd = std::env::current_dir().map_err(|_| VmErrorReason::UnexpectedVmState)?;
 
         let path_sym = path_symbol(vm);
-        frame.stack.push(new_from_path(&the_struct, &cwd, path_sym));
+        frame
+            .stack
+            .push(new_from_path(&the_struct, &cwd, path_sym, &mut vm.globals));
         Ok(RunloopExit::Ok(()))
     }
 
@@ -477,7 +492,8 @@ impl BuiltinFunctionImpl for Canonical {
         let rfo = rust_obj.content.borrow_mut();
         let val = match rfo.canonicalize() {
             Ok(path) => {
-                let canonical_object = new_from_path(aria_object.get_struct(), &path, path_sym);
+                let canonical_object =
+                    new_from_path(aria_object.get_struct(), &path, path_sym, &mut vm.globals);
 
                 vm.globals.create_result_ok(canonical_object)?
             }
@@ -774,18 +790,21 @@ impl BuiltinFunctionImpl for Entries {
             .intern_symbol("Iterator")
             .expect("too many symbols interned");
         let iterator_struct =
-            aria_struct.extract_field(iterator_sym, |f| f.as_struct().cloned())?;
+            aria_struct.extract_field(&vm.globals, iterator_sym, |f: RuntimeValue| {
+                f.as_struct().cloned()
+            })?;
 
         let rust_obj = mut_path_from_aria(&aria_object, &vm.globals)?;
         let rfo = rust_obj.content.borrow_mut();
 
         if let Ok(rd) = rfo.read_dir() {
-            let flatten = rd
+            let values: Vec<_> = rd
                 .flatten()
-                .map(move |e| new_from_path(&aria_struct, e.path(), path_sym));
+                .map(|e| new_from_path(&aria_struct, e.path(), path_sym, &mut vm.globals))
+                .collect();
             let iterator = create_iterator_struct(
                 &iterator_struct,
-                NativeIteratorImpl::new(flatten),
+                NativeIteratorImpl::new(values.into_iter()),
                 &mut vm.globals,
             );
             frame.stack.push(iterator);
@@ -1000,9 +1019,10 @@ impl BuiltinFunctionImpl for CommonAncestor {
         let other_path = other_path.content.borrow_mut();
 
         let val = match this_path.ancestors().find(|p| other_path.starts_with(p)) {
-            Some(p) => vm
-                .globals
-                .create_maybe_some(new_from_path(this_struct, p, path_sym))?,
+            Some(p) => {
+                let candidate = new_from_path(this_struct, p, path_sym, &mut vm.globals);
+                vm.globals.create_maybe_some(candidate)?
+            }
             None => vm.globals.create_maybe_none()?,
         };
 

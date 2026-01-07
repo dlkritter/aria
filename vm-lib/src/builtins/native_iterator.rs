@@ -71,7 +71,7 @@ impl BuiltinFunctionImpl for Next {
             .intern_symbol("__impl")
             .expect("too many symbols interned");
         let iterator_impl = aria_this
-            .read(impl_sym)
+            .read(&vm.globals, impl_sym)
             .ok_or(VmErrorReason::UnexpectedVmState)?;
         let rust_native_iter = iterator_impl
             .as_opaque_concrete::<RefCell<NativeIteratorImpl>>()

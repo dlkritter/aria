@@ -3,6 +3,7 @@
 use std::collections::HashSet;
 
 use crate::{
+    builtins::VmGlobals,
     runtime_value::{RuntimeValue, mixin::Mixin},
     symbol::Symbol,
 };
@@ -13,11 +14,11 @@ pub struct MixinIncluder {
 }
 
 impl MixinIncluder {
-    pub fn load_named_value(&self, name: Symbol) -> Option<RuntimeValue> {
+    pub fn load_named_value(&self, builtins: &VmGlobals, name: Symbol) -> Option<RuntimeValue> {
         self.mixins
             .iter()
             .rev()
-            .find_map(|mixin| mixin.load_named_value(name))
+            .find_map(|mixin| mixin.load_named_value(builtins, name))
     }
 
     pub fn include(&mut self, mixin: Mixin) {
@@ -33,10 +34,10 @@ impl MixinIncluder {
         false
     }
 
-    pub fn list_attributes(&self) -> HashSet<Symbol> {
+    pub fn list_attributes(&self, builtins: &VmGlobals) -> HashSet<Symbol> {
         let mut attrs = HashSet::new();
         for mixin in &self.mixins {
-            attrs.extend(mixin.list_attributes());
+            attrs.extend(mixin.list_attributes(builtins));
         }
         attrs
     }

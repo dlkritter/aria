@@ -33,25 +33,25 @@ impl StructImpl {
         self.mixins.borrow().contains(mixin)
     }
 
-    fn load_named_value(&self, name: Symbol) -> Option<RuntimeValue> {
-        if let Some(nv) = self.entries.read(name) {
+    fn load_named_value(&self, builtins: &VmGlobals, name: Symbol) -> Option<RuntimeValue> {
+        if let Some(nv) = self.entries.read(builtins, name) {
             Some(nv.clone())
         } else {
-            self.mixins.borrow().load_named_value(name)
+            self.mixins.borrow().load_named_value(builtins, name)
         }
     }
 
-    fn store_named_value(&self, name: Symbol, val: RuntimeValue) {
-        self.entries.write(name, val);
+    fn store_named_value(&self, builtins: &mut VmGlobals, name: Symbol, val: RuntimeValue) {
+        self.entries.write(builtins, name, val);
     }
 
     fn include_mixin(&self, mixin: &Mixin) {
         self.mixins.borrow_mut().include(mixin.clone());
     }
 
-    fn list_attributes(&self) -> FxHashSet<Symbol> {
-        let mut attrs = self.entries.keys();
-        attrs.extend(self.mixins.borrow().list_attributes());
+    fn list_attributes(&self, builtins: &VmGlobals) -> FxHashSet<Symbol> {
+        let mut attrs = self.entries.list_attributes(builtins);
+        attrs.extend(self.mixins.borrow().list_attributes(builtins));
         attrs
     }
 }
@@ -72,8 +72,8 @@ impl Struct {
         &self.imp.name
     }
 
-    pub fn load_named_value(&self, name: Symbol) -> Option<RuntimeValue> {
-        self.imp.load_named_value(name)
+    pub fn load_named_value(&self, builtins: &VmGlobals, name: Symbol) -> Option<RuntimeValue> {
+        self.imp.load_named_value(builtins, name)
     }
 
     pub fn include_mixin(&self, mixin: &Mixin) {
@@ -84,8 +84,8 @@ impl Struct {
         self.imp.isa_mixin(mixin)
     }
 
-    pub fn list_attributes(&self) -> FxHashSet<Symbol> {
-        self.imp.list_attributes()
+    pub fn list_attributes(&self, builtins: &VmGlobals) -> FxHashSet<Symbol> {
+        self.imp.list_attributes(builtins)
     }
 }
 
@@ -105,19 +105,23 @@ impl Struct {
         let name = builtins
             .intern_symbol(t.name())
             .expect("too many symbols interned");
-        self.imp
-            .store_named_value(name, RuntimeValue::Function(Function::builtin_from(t)));
+        self.imp.store_named_value(
+            builtins,
+            name,
+            RuntimeValue::Function(Function::builtin_from(t)),
+        );
     }
 
     pub fn extract_field<FnType, OkType>(
         &self,
+        builtins: &VmGlobals,
         name: Symbol,
         f: FnType,
     ) -> Result<OkType, VmErrorReason>
     where
         FnType: FnOnce(RuntimeValue) -> Option<OkType>,
     {
-        let val = match self.load_named_value(name) {
+        let val = match self.load_named_value(builtins, name) {
             Some(v) => v,
             None => {
                 return Err(VmErrorReason::NoSuchIdentifier(name.to_string()));

@@ -326,7 +326,7 @@ impl BuiltinFunctionImpl for FromBytes {
                     .intern_symbol("EncodingError")
                     .expect("too many symbols interned");
                 let encoding_err_rv = this_str_type
-                    .read(encoding_err_sym)
+                    .read(&vm.globals, encoding_err_sym)
                     .ok_or_else(|| VmErrorReason::NoSuchIdentifier("EncodingError".to_owned()))?;
 
                 let encoding_err_struct = encoding_err_rv

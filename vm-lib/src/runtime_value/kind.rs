@@ -168,19 +168,23 @@ impl std::ops::BitOr<&RuntimeValueType> for &RuntimeValueType {
 }
 
 impl RuntimeValueType {
-    pub fn read_attribute(&self, attr_name: Symbol) -> Result<RuntimeValue, AttributeError> {
+    pub fn read_attribute(
+        &self,
+        builtins: &VmGlobals,
+        attr_name: Symbol,
+    ) -> Result<RuntimeValue, AttributeError> {
         if let Some(struk) = self.as_struct() {
-            match struk.load_named_value(attr_name) {
+            match struk.load_named_value(builtins, attr_name) {
                 Some(x) => Ok(x),
                 None => Err(AttributeError::NoSuchAttribute),
             }
         } else if let Some(enumm) = self.as_enum() {
-            match enumm.load_named_value(attr_name) {
+            match enumm.load_named_value(builtins, attr_name) {
                 Some(x) => Ok(x),
                 None => Err(AttributeError::NoSuchAttribute),
             }
         } else if let Some(bt) = self.as_rust_native() {
-            match bt.read(attr_name) {
+            match bt.read(builtins, attr_name) {
                 Some(x) => Ok(x),
                 None => Err(AttributeError::NoSuchAttribute),
             }
@@ -206,13 +210,13 @@ impl RuntimeValueType {
         }
     }
 
-    pub fn list_attributes(&self) -> FxHashSet<Symbol> {
+    pub fn list_attributes(&self, builtins: &VmGlobals) -> FxHashSet<Symbol> {
         if let Some(struk) = self.as_struct() {
-            struk.list_attributes()
+            struk.list_attributes(builtins)
         } else if let Some(enumm) = self.as_enum() {
-            enumm.list_attributes()
+            enumm.list_attributes(builtins)
         } else if let Some(bt) = self.as_rust_native() {
-            bt.list_attributes()
+            bt.list_attributes(builtins)
         } else {
             Default::default()
         }

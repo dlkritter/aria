@@ -77,7 +77,7 @@ fn mut_file_from_aria(
 ) -> Result<Rc<MutableFile>, VmErrorReason> {
     let file_sym = file_symbol(builtins)?;
     let rust_file_obj = aria_file
-        .read(file_sym)
+        .read(builtins, file_sym)
         .ok_or(VmErrorReason::UnexpectedVmState)?;
     rust_file_obj
         .as_opaque_concrete::<MutableFile>()
@@ -92,7 +92,8 @@ fn throw_io_error(
     let err_sym = builtins
         .intern_symbol("IOError")
         .expect("too many symbols interned");
-    let io_error = the_struct.extract_field(err_sym, |f| f.as_struct().cloned())?;
+    let io_error =
+        the_struct.extract_field(builtins, err_sym, |f: RuntimeValue| f.as_struct().cloned())?;
     let io_error = RuntimeValue::Object(Object::new(&io_error));
     let message_sym = builtins
         .intern_symbol("message")
@@ -130,7 +131,7 @@ impl BuiltinFunctionImpl for New {
                 let _ = aria_file_obj.write_attribute(
                     file_sym,
                     RuntimeValue::Opaque(file_obj),
-                    &vm.globals,
+                    &mut vm.globals,
                 );
                 frame.stack.push(aria_file_obj);
                 Ok(RunloopExit::Ok(()))
@@ -168,7 +169,7 @@ impl BuiltinFunctionImpl for Close {
 
         let rust_file_obj = mut_file_from_aria(&aria_file, &vm.globals)?;
         let _ = rust_file_obj.file.borrow_mut().flush();
-        aria_file.delete(file_symbol(&vm.globals)?);
+        //aria_file.delete(file_symbol(&vm.globals)?);
         Ok(RunloopExit::Ok(()))
     }
 

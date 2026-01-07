@@ -192,9 +192,13 @@ pub(super) fn insert_float_builtins(builtins: &mut VmGlobals) {
     let epsilon_sym = builtins
         .intern_symbol("epsilon")
         .expect("too many symbols interned");
-    fp_builtin.write(inf_sym, RuntimeValue::Float(f64::INFINITY.into()));
-    fp_builtin.write(nan_sym, RuntimeValue::Float(f64::NAN.into()));
-    fp_builtin.write(epsilon_sym, RuntimeValue::Float(f64::EPSILON.into()));
+    fp_builtin.write(builtins, inf_sym, RuntimeValue::Float(f64::INFINITY.into()));
+    fp_builtin.write(builtins, nan_sym, RuntimeValue::Float(f64::NAN.into()));
+    fp_builtin.write(
+        builtins,
+        epsilon_sym,
+        RuntimeValue::Float(f64::EPSILON.into()),
+    );
 
     builtins.register_builtin_type(
         haxby_opcodes::BuiltinTypeId::Float,

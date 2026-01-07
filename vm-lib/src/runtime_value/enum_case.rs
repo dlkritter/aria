@@ -2,7 +2,7 @@
 
 use std::rc::Rc;
 
-use crate::{frame::Frame, vm::VirtualMachine};
+use crate::{builtins::VmGlobals, frame::Frame, vm::VirtualMachine};
 
 use crate::symbol::Symbol;
 
@@ -32,8 +32,8 @@ impl EnumValue {
         self.imp.payload.as_ref()
     }
 
-    pub fn read(&self, name: Symbol) -> Option<RuntimeValue> {
-        self.imp.enumm.load_named_value(name)
+    pub fn read(&self, builtins: &VmGlobals, name: Symbol) -> Option<RuntimeValue> {
+        self.imp.enumm.load_named_value(builtins, name)
     }
 }
 

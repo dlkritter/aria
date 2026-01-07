@@ -17,7 +17,7 @@ impl BuiltinFunctionImpl for WriteAttr {
         let the_symbol = vm.globals.intern_symbol(&the_string)?;
         let the_value = frame.stack.pop();
         the_object
-            .write_attribute(the_symbol, the_value, &vm.globals)
+            .write_attribute(the_symbol, the_value, &mut vm.globals)
             .map_err(|e| e.to_vm_error_reason(&the_string))?;
         frame.stack.push(vm.globals.create_unit_object()?);
         Ok(RunloopExit::Ok(()))

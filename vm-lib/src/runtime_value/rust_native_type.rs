@@ -4,7 +4,7 @@ use std::{cell::RefCell, rc::Rc};
 use enum_as_inner::EnumAsInner;
 use rustc_data_structures::fx::FxHashSet;
 
-use crate::symbol::Symbol;
+use crate::{builtins::VmGlobals, symbol::Symbol};
 
 use super::{
     RuntimeValue,
@@ -30,14 +30,14 @@ struct RustNativeTypeImpl {
 }
 
 impl RustNativeTypeImpl {
-    fn write(&self, name: Symbol, val: RuntimeValue) {
-        self.boxx.write(name, val)
+    fn write(&self, builtins: &mut VmGlobals, name: Symbol, val: RuntimeValue) {
+        self.boxx.write(builtins, name, val)
     }
 
-    fn read(&self, name: Symbol) -> Option<RuntimeValue> {
-        match self.boxx.read(name) {
+    fn read(&self, builtins: &VmGlobals, name: Symbol) -> Option<RuntimeValue> {
+        match self.boxx.read(builtins, name) {
             Some(nv) => Some(nv),
-            _ => self.mixins.borrow().load_named_value(name),
+            _ => self.mixins.borrow().load_named_value(builtins, name),
         }
     }
 
@@ -49,9 +49,9 @@ impl RustNativeTypeImpl {
         self.mixins.borrow().contains(mixin)
     }
 
-    fn list_attributes(&self) -> FxHashSet<Symbol> {
-        let mut attrs = self.boxx.list_attributes();
-        attrs.extend(self.mixins.borrow().list_attributes());
+    fn list_attributes(&self, builtins: &VmGlobals) -> FxHashSet<Symbol> {
+        let mut attrs = self.boxx.list_attributes(builtins);
+        attrs.extend(self.mixins.borrow().list_attributes(builtins));
         attrs
     }
 }
@@ -80,12 +80,12 @@ impl RustNativeType {
         &self.imp.boxx
     }
 
-    pub(crate) fn write(&self, name: Symbol, val: RuntimeValue) {
-        self.imp.write(name, val);
+    pub(crate) fn write(&self, builtins: &mut VmGlobals, name: Symbol, val: RuntimeValue) {
+        self.imp.write(builtins, name, val);
     }
 
-    pub fn read(&self, name: Symbol) -> Option<RuntimeValue> {
-        self.imp.read(name)
+    pub fn read(&self, builtins: &VmGlobals, name: Symbol) -> Option<RuntimeValue> {
+        self.imp.read(builtins, name)
     }
 
     pub fn include_mixin(&self, mixin: &Mixin) {
@@ -96,7 +96,7 @@ impl RustNativeType {
         self.imp.isa_mixin(mixin)
     }
 
-    pub fn insert_builtin<T>(&self, builtins: &mut crate::builtins::VmGlobals)
+    pub fn insert_builtin<T>(&self, builtins: &mut VmGlobals)
     where
         T: 'static + Default + BuiltinFunctionImpl,
     {
@@ -104,12 +104,15 @@ impl RustNativeType {
         let name = builtins
             .intern_symbol(t.name())
             .expect("too many symbols interned");
-        self.get_boxx()
-            .write(name, RuntimeValue::Function(Function::builtin_from(t)));
+        self.get_boxx().write(
+            builtins,
+            name,
+            RuntimeValue::Function(Function::builtin_from(t)),
+        );
     }
 
-    pub fn list_attributes(&self) -> FxHashSet<Symbol> {
-        self.imp.list_attributes()
+    pub fn list_attributes(&self, builtins: &VmGlobals) -> FxHashSet<Symbol> {
+        self.imp.list_attributes(builtins)
     }
 }
 
