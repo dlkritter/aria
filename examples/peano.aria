@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: Apache-2.0
+
+enum Peano {
+    case Zero,
+    case Succ(Peano),
+}
+
+extension Peano {
+    func prettyprint() {
+        match this {
+            case Zero => { return ""; },
+            case Succ(x) => { return "+" + x.prettyprint(); },
+        }
+    }
+
+    func double() {
+        match this {
+            case Zero => { return Peano::Zero; },
+            case Succ(x) => { return Peano::Succ(Peano::Succ(x.double())); },
+        }
+    }
+
+    func quadruple() {
+        return this.double().double();
+    }
+
+    func succ() {
+        return Peano::Succ(this);
+    }
+}
+
+val three = Peano::Zero.succ().succ().succ();
+val twelve = three.quadruple();
+
+println("{0}".format(twelve));
