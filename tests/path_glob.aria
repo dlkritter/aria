@@ -12,13 +12,16 @@ func main() {
     
     for path in glob_iter {
         expected_paths.remove(path.prettyprint());
+        if expected_paths.len() == 0 {
+            break;
+        }
     }
     
     assert expected_paths.len() == 0;
 
-    val glob_iter = Path.glob("**/*.pepepapa")!;
+    val glob_iter = Path.glob("/tmp/**/*.pepepapa")!;
     assert glob_iter.count() == 0;
-    
+
     val glob_iter = Path.glob("a**/b/*.yml");
     assert glob_iter.is_Err();
 }
