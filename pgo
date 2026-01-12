@@ -15,4 +15,16 @@ RUST_MIN_STACK=${RUST_MIN_STACK} ARIA_LIB_DIR=${ARIA_LIB_DIR} ${aria_bin} ${SELF
 
 cargo pgo optimize build -- --profile pgo
 
-printf "Run PGO optimized Aria as ARIA_LIB_DIR="${ARIA_LIB_DIR}" "${aria_bin}"\n"
+aria_parent=$(dirname "$aria_bin")
+json=false
+for arg in "$@"; do
+    if [ "$arg" = "--json" ]; then json=true; break; fi
+done
+
+# emit JSON so that automated tools can process the path to the optimized binary
+# e.g. path=`jq -r '.output_path' /path/to/json.out`
+if [ "$json" = true ]; then
+    printf '{"output_path":"%s"}\n' "$aria_parent"
+else
+    printf 'Run PGO optimized Aria as ARIA_LIB_DIR="%s" %s\n' "${ARIA_LIB_DIR}" "${aria_bin}"
+fi
