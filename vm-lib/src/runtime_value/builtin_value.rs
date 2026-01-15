@@ -39,21 +39,25 @@ trait GetBuiltinTypeId {
 }
 
 impl GetBuiltinTypeId for i64 {
+    #[inline]
     fn get_builtin_type_id() -> BuiltinTypeId {
         BuiltinTypeId::Int
     }
 }
 impl GetBuiltinTypeId for bool {
+    #[inline]
     fn get_builtin_type_id() -> BuiltinTypeId {
         BuiltinTypeId::Bool
     }
 }
 impl GetBuiltinTypeId for String {
+    #[inline]
     fn get_builtin_type_id() -> BuiltinTypeId {
         BuiltinTypeId::String
     }
 }
 impl GetBuiltinTypeId for f64 {
+    #[inline]
     fn get_builtin_type_id() -> BuiltinTypeId {
         BuiltinTypeId::Float
     }
@@ -63,6 +67,7 @@ impl<T> From<T> for BuiltinValueImpl<T>
 where
     T: Clone + GetBuiltinTypeId,
 {
+    #[inline]
     fn from(val: T) -> Self {
         Self {
             val,
@@ -76,6 +81,7 @@ impl<T> From<T> for BuiltinValue<T>
 where
     T: Clone + GetBuiltinTypeId,
 {
+    #[inline]
     fn from(val: T) -> Self {
         Self {
             imp: Rc::new(From::from(val)),
