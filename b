@@ -40,9 +40,9 @@ elif [ "$COMMAND" = "micro" ]; then
     ARIA_LIB_DIR="${ARIA_LIB_DIR}:${SELF_DIR}/microbenchmarks"
     export ARIA_LIB_DIR
     if command -v taskset >/dev/null 2>&1; then
-        taskset "$CPU_AFFINITY_MASK" "${ARIA_EXECUTABLE}" "$BENCH"
+        exec taskset "$CPU_AFFINITY_MASK" "${ARIA_EXECUTABLE}" "$BENCH" "${@:3}"
     else
-        exec "${ARIA_EXECUTABLE}" "$BENCH"
+        exec "${ARIA_EXECUTABLE}" "$BENCH" "${@:3}"
     fi
 else
     OUTPUT=$(cargo bench --no-run --profile "$ARIA_BUILD_CONFIG" --package vm-lib "$BENCH" 2>&1)
