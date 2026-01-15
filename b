@@ -17,6 +17,7 @@ fi
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ARIA_BUILD_CONFIG="${ARIA_BUILD_CONFIG:-release}"
+CPU_AFFINITY_MASK="${CPU_AFFINITY_MASK:-0x1}"
 if [ -z "${ARIA_EXECUTABLE:-}" ]; then
     cargo build --profile "$ARIA_BUILD_CONFIG" --bin aria
     TARGET_DIR=$(cd "$SELF_DIR" && cargo metadata --format-version 1 --no-deps 2>/dev/null | jq -r '.target_directory // empty' 2>/dev/null || true)
@@ -33,12 +34,15 @@ export ARIA_LIB_DIR="$ARIA_LIB_DIR"
 if [ "$COMMAND" = "bench" ]; then
     cargo bench --profile "$ARIA_BUILD_CONFIG" --package vm-lib "$BENCH"
 elif [ "$COMMAND" = "micro" ]; then
+    if [ ! -f "$BENCH" ]; then
+        BENCH="${SELF_DIR}/microbenchmarks/${BENCH}.aria"
+    fi
     ARIA_LIB_DIR="${ARIA_LIB_DIR}:${SELF_DIR}/microbenchmarks"
     export ARIA_LIB_DIR
-    if [ -f "$BENCH" ]; then
-        exec "${ARIA_EXECUTABLE}" "$BENCH"
+    if command -v taskset >/dev/null 2>&1; then
+        taskset "$CPU_AFFINITY_MASK" "${ARIA_EXECUTABLE}" "$BENCH"
     else
-        exec "${ARIA_EXECUTABLE}" "${SELF_DIR}/microbenchmarks/$BENCH.aria"
+        exec "${ARIA_EXECUTABLE}" "$BENCH"
     fi
 else
     OUTPUT=$(cargo bench --no-run --profile "$ARIA_BUILD_CONFIG" --package vm-lib "$BENCH" 2>&1)
