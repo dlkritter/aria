@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: Apache-2.0
+import aria.range.int_extension;
+import Microbenchmark from infra;
+
+func foo(_) {}
+
+struct ListFromClosure : Microbenchmark {
+    func test() {
+        foo(List.from_function(|_| => false, 1_000_000));
+    }
+}
+
+ListFromClosure.new("List From Closure").run();

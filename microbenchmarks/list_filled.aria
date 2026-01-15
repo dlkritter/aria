@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: Apache-2.0
+import aria.range.int_extension;
+import Microbenchmark from infra;
+
+func foo(_) {}
+
+struct ListFilled : Microbenchmark {
+    func test() {
+        foo(List.filled(false, 1_000_000));
+    }
+}
+
+ListFilled.new("List Filled").run();
