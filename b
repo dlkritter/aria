@@ -3,7 +3,7 @@ set -e
 
 print_usage() {
     echo "Usage: $0 <command> <bench>"
-    echo "command: bench, perf, valgrind, time"
+    echo "command: bench, micro, perf, time, valgrind"
     echo "bench: Name or partial name of the benchmark to run"
 }
 
@@ -17,12 +17,29 @@ fi
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ARIA_BUILD_CONFIG="${ARIA_BUILD_CONFIG:-release}"
+if [ -z "${ARIA_EXECUTABLE:-}" ]; then
+    cargo build --profile "$ARIA_BUILD_CONFIG" --bin aria
+    TARGET_DIR=$(cd "$SELF_DIR" && cargo metadata --format-version 1 --no-deps 2>/dev/null | jq -r '.target_directory // empty' 2>/dev/null || true)
+    if [ -z "$TARGET_DIR" ]; then
+        TARGET_DIR="${SELF_DIR}/../target"
+    fi
+    ARIA_EXECUTABLE="${TARGET_DIR}/${ARIA_BUILD_CONFIG}/aria"
+fi
+export ARIA_EXECUTABLE
 ARIA_LIB_DIR="${ARIA_LIB_DIR:-${SELF_DIR}/lib:${SELF_DIR}/lib-test}"
 
 export ARIA_LIB_DIR="$ARIA_LIB_DIR"
 
 if [ "$COMMAND" = "bench" ]; then
     cargo bench --profile "$ARIA_BUILD_CONFIG" --package vm-lib "$BENCH"
+elif [ "$COMMAND" = "micro" ]; then
+    ARIA_LIB_DIR="${ARIA_LIB_DIR}:${SELF_DIR}/microbenchmarks"
+    export ARIA_LIB_DIR
+    if [ -f "$BENCH" ]; then
+        exec "${ARIA_EXECUTABLE}" "$BENCH"
+    else
+        exec "${ARIA_EXECUTABLE}" "${SELF_DIR}/microbenchmarks/$BENCH.aria"
+    fi
 else
     OUTPUT=$(cargo bench --no-run --profile "$ARIA_BUILD_CONFIG" --package vm-lib "$BENCH" 2>&1)
     echo "$OUTPUT"
