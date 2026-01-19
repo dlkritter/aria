@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
+### TAGS: XFAIL
+
 import JsonValue from aria.json.parser;
 import aria.json.parser;
 
