@@ -7,7 +7,7 @@ use std::{
 };
 
 use aria_compiler::{compile_from_source, module::CompiledModule};
-use aria_parser::ast::{SourceBuffer, prettyprint::printout_accumulator::PrintoutAccumulator};
+use aria_parser::ast::SourceBuffer;
 use haxby_opcodes::{
     BuiltinTypeId, OPCODE_BIND_CASE, OPCODE_ENUM_CHECK_IS_CASE, OPCODE_NEW_ENUM_VAL,
     OPCODE_READ_ATTRIBUTE, OPCODE_WRITE_ATTRIBUTE, Opcode, enum_case_attribs::CASE_HAS_PAYLOAD,
@@ -23,12 +23,9 @@ use crate::{
         vm_error::{SymbolKind, VmError, VmErrorReason},
     },
     frame::Frame,
-    opcodes::{
-        prettyprint::opcode_prettyprint,
-        sidecar::{
-            EnumCheckIsCaseSidecar, NewEnumValSidecar, OpcodeSidecar, ReadAttributeSidecar,
-            SidecarCell, SidecarSlice, sidecar_prettyprint,
-        },
+    opcodes::sidecar::{
+        EnumCheckIsCaseSidecar, NewEnumValSidecar, OpcodeSidecar, ReadAttributeSidecar,
+        SidecarCell, SidecarSlice,
     },
     runtime_module::RuntimeModule,
     runtime_value::{
@@ -49,7 +46,9 @@ pub type ConsoleHandle = Rc<RefCell<dyn Console>>;
 
 #[derive(Clone)]
 pub struct VmOptions {
+    #[cfg(debug_assertions)]
     pub tracing: bool,
+    #[cfg(debug_assertions)]
     pub dump_stack: bool,
     pub vm_args: Vec<String>,
     pub console: ConsoleHandle,
@@ -58,7 +57,9 @@ pub struct VmOptions {
 impl Default for VmOptions {
     fn default() -> Self {
         Self {
+            #[cfg(debug_assertions)]
             tracing: Default::default(),
+            #[cfg(debug_assertions)]
             dump_stack: Default::default(),
             vm_args: Default::default(),
             console: Rc::new(RefCell::new(StdConsole {})),
@@ -1980,6 +1981,7 @@ impl VirtualMachine {
     ) -> ExecutionResult<RunloopExit, VmError> {
         let mut op_counter = 0;
         loop {
+            #[cfg(debug_assertions)]
             if self.options.tracing && self.options.dump_stack {
                 frame.stack.dump();
             }
@@ -1998,19 +2000,20 @@ impl VirtualMachine {
                 }
             };
 
+            #[cfg(debug_assertions)]
             if self.options.tracing {
-                let poa = PrintoutAccumulator::default();
+                let poa = aria_parser::ast::prettyprint::printout_accumulator::PrintoutAccumulator::default();
                 let next = {
                     let ropc = crate::opcodes::prettyprint::RuntimeOpcodePrinter {
                         globals: Some(&self.globals),
                         module: Some(module),
                     };
-                    opcode_prettyprint(next, &ropc, poa).value()
+                    crate::opcodes::prettyprint::opcode_prettyprint(next, &ropc, poa).value()
                 };
                 let next_sidecar = {
                     if let Some(sc) = next_sidecar.get() {
-                        let poa = PrintoutAccumulator::default();
-                        sidecar_prettyprint(sc, poa).value()
+                        let poa = aria_parser::ast::prettyprint::printout_accumulator::PrintoutAccumulator::default();
+                        crate::opcodes::sidecar::sidecar_prettyprint(sc, poa).value()
                     } else {
                         "".to_string()
                     }

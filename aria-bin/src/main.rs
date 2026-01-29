@@ -19,9 +19,11 @@ struct Args {
     perf_trace_dest: Option<String>,
     /// Should the VM trace instruction execution
     #[arg(long("trace-exec"))]
+    #[cfg(debug_assertions)]
     trace_exec: bool,
     /// Should the VM dump the stack at each instruction
     #[arg(long("trace-stack"))]
+    #[cfg(debug_assertions)]
     trace_stack: bool,
     /// Should the AST be dumped after parsing
     #[arg(long("dump-ast"))]
@@ -48,6 +50,7 @@ impl From<&Args> for VmOptions {
     fn from(value: &Args) -> Self {
         let mut options = VmOptions::default();
 
+        #[cfg(debug_assertions)]
         if value.trace_exec {
             options.tracing = true;
             if value.trace_stack {

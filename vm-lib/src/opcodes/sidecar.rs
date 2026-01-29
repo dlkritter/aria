@@ -2,7 +2,6 @@
 
 use std::cell::Cell;
 
-use aria_parser::ast::prettyprint::printout_accumulator::PrintoutAccumulator;
 use enum_as_inner::EnumAsInner;
 
 use crate::shape::{ShapeId, SlotId};
@@ -46,10 +45,11 @@ pub enum OpcodeSidecar {
 pub type SidecarCell = Cell<Option<OpcodeSidecar>>;
 pub type SidecarSlice = [SidecarCell];
 
+#[cfg(debug_assertions)]
 pub(crate) fn sidecar_prettyprint(
     sidecar: OpcodeSidecar,
-    buffer: PrintoutAccumulator,
-) -> PrintoutAccumulator {
+    buffer: aria_parser::ast::prettyprint::printout_accumulator::PrintoutAccumulator,
+) -> aria_parser::ast::prettyprint::printout_accumulator::PrintoutAccumulator {
     match sidecar {
         OpcodeSidecar::ReadAttribute(sc) => {
             buffer
